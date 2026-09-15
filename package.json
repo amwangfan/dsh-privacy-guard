@@ -1,0 +1,68 @@
+{
+  "name": "dsh-privacy-guard",
+  "description": "DeepSeek Harness 隐私脱密守护插件：监控本地 Privacy Gateway (:8317) 与 Qwen2.5-0.5B 本地小模型脱密状态，提供可视化安全看板与在线泄密探测沙箱",
+  "descriptionEn": "Privacy Guard plugin for DeepSeek Harness: monitors the local Privacy Gateway (:8317) and Qwen2.5-0.5B residual classifier, featuring a live security audit dashboard and interactive leak test sandbox.",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./client": {
+      "types": "./lib/types/client.d.ts",
+      "default": "./lib/client.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "src",
+    "cordis.patch.yml",
+    "LICENSE",
+    "README.md",
+    "README.zh.md"
+  ],
+  "license": "Apache-2.0",
+  "author": "amwangfan",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/amwangfan/dsh-privacy-guard.git"
+  },
+  "homepage": "https://github.com/amwangfan/dsh-privacy-guard",
+  "keywords": [
+    "deepseek-harness",
+    "dsh-plugin",
+    "privacy",
+    "security",
+    "dlp",
+    "cordis",
+    "qwen",
+    "gateway"
+  ],
+  "dsh": {
+    "engines": {
+      "dsh": ">=0.1.5-rc.1"
+    },
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-connection",
+        "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-client-ui-slots",
+        "@deepseek-ai/dsh-client-ui-renderer"
+      ],
+      "platform": "web"
+    }
+  },
+  "peerDependencies": {
+    "react": "^18.2.0"
+  },
+  "scripts": {
+    "build": "node build.js"
+  }
+}

@@ -1,0 +1,4 @@
+# dsh-privacy-guard bundle patch: mounts host and web halves into the DSH profile.
+- insert:
+    - id: privacy-guard
+      name: 'dsh-privacy-guard'
