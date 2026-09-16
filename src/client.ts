@@ -244,6 +244,7 @@ function useExemptions() {
   const [online, setOnline] = useState(true)
   const cursor = useRef(0)
   const primed = useRef(false)
+  const tickRef = useRef<() => Promise<void>>(async () => {})
 
   useEffect(() => {
     let cancelled = false
@@ -277,6 +278,7 @@ function useExemptions() {
         /* audit is best-effort */
       }
     }
+    tickRef.current = tick
     tick()
     const timer = setInterval(tick, POLL_MS)
     return () => {
@@ -285,7 +287,7 @@ function useExemptions() {
     }
   }, [])
 
-  return { list, fresh, online, clear: () => setFresh([]) }
+  return { list, fresh, online, clear: () => setFresh([]), refresh: () => tickRef.current() }
 }
 
 const card: React.CSSProperties = {
@@ -432,7 +434,7 @@ function NotificationBanner(props: { t: T }): React.ReactElement | null {
 
 function ExemptionCard(props: { t: T }): React.ReactElement {
   const { t } = props
-  const { list, online } = useExemptions()
+  const { list, online, refresh } = useExemptions()
   const entries: ExemptionEntry[] = list?.entries || []
   const stats = list?.stats
   const tone = !online ? '#9ca3af' : entries.length ? '#fbbf24' : '#4ade80'
@@ -488,6 +490,7 @@ function ExemptionCard(props: { t: T }): React.ReactElement {
       }
       setNote(t('exempt.applied', { added: added.length, removed: removed.length }))
       setEditing(false)
+      await refresh()
     } catch (e: any) {
       setNote(e?.message || t('sandbox.fail'))
     } finally {
