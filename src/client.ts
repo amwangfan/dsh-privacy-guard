@@ -371,10 +371,10 @@ function useExemptions() {
 }
 
 const card: React.CSSProperties = {
-  background: 'var(--dsh-card-bg, rgba(255,255,255,0.03))',
+  background: 'var(--dsw-alias-bg-layer-1)',
   borderRadius: '10px',
   padding: '14px',
-  border: '1px solid rgba(255,255,255,0.12)',
+  border: '1px solid var(--dsw-alias-border-l1)',
 }
 const dim: React.CSSProperties = { fontSize: '12px', opacity: 0.7 }
 
@@ -444,7 +444,7 @@ function NotificationBanner(props: { t: T }): React.ReactElement | null {
 
   if (!item) return null
   const added = item.kind === 'add'
-  const accent = added ? '#f59e0b' : item.kind === 'key-change' ? '#a78bfa' : '#22c55e'
+  const accent = added ? 'var(--dsw-alias-state-warn-primary)' : item.kind === 'key-change' ? 'var(--dsw-alias-brand-primary)' : 'var(--dsw-alias-state-success-primary)'
 
   return React.createElement(
     'div',
@@ -458,13 +458,13 @@ function NotificationBanner(props: { t: T }): React.ReactElement | null {
         zIndex: 9000,
         pointerEvents: 'auto',
         width: 'min(620px, calc(100vw - 32px))',
-        background: 'rgba(20,20,24,0.97)',
+        background: 'var(--dsw-alias-bg-overlay)',
         border: `1px solid ${accent}`,
         borderLeft: `4px solid ${accent}`,
         borderRadius: '10px',
         padding: '12px 14px',
-        boxShadow: '0 10px 30px rgba(0,0,0,0.45)',
-        color: '#f1f5f9',
+        boxShadow: '0 10px 30px rgba(0,0,0,0.28)',
+        color: 'var(--dsw-alias-label-primary)',
         fontSize: '13px',
         lineHeight: '1.55',
         fontFamily: 'system-ui, -apple-system, sans-serif',
@@ -499,7 +499,7 @@ function NotificationBanner(props: { t: T }): React.ReactElement | null {
           style: {
             background: 'transparent',
             border: 'none',
-            color: '#94a3b8',
+            color: 'var(--dsw-alias-label-secondary)',
             cursor: 'pointer',
             fontSize: '15px',
             lineHeight: 1,
@@ -598,11 +598,11 @@ function DeployCard(props: { t: T }): React.ReactElement {
   const row = (label: string, part: 'gateway' | 'model', info: any) => {
     if (!info) return null
     const running = info.active === 'active'
-    const tone = running ? '#4ade80' : info.ready ? '#fbbf24' : '#f87171'
+    const tone = running ? 'var(--dsw-alias-state-success-primary)' : info.ready ? 'var(--dsw-alias-state-warn-primary)' : 'var(--dsw-alias-state-error-primary)'
     const state = running ? t('deploy.running') : info.ready ? t('deploy.stopped') : t('deploy.missing')
     return React.createElement(
       'div',
-      { style: { padding: '8px 10px', borderRadius: '8px', background: 'rgba(0,0,0,0.18)', marginBottom: '6px' } },
+      { style: { padding: '8px 10px', borderRadius: '8px', background: 'var(--dsw-alias-bg-layer-2)', marginBottom: '6px' } },
       React.createElement(
         'div',
         { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' } },
@@ -617,7 +617,7 @@ function DeployCard(props: { t: T }): React.ReactElement {
       !info.ready && info.needs?.length
         ? React.createElement(
             'div',
-            { style: { fontSize: '11px', color: '#f87171', marginTop: '2px' } },
+            { style: { fontSize: '11px', color: 'var(--dsw-alias-state-error-primary)', marginTop: '2px' } },
             `${t('deploy.missing')}: ${info.needs.join(', ')}`,
           )
         : null,
@@ -648,7 +648,7 @@ function DeployCard(props: { t: T }): React.ReactElement {
           fontSize: '11px',
           background: 'transparent',
           color: 'inherit',
-          border: '1px solid rgba(255,255,255,0.18)',
+          border: '1px solid var(--dsw-alias-border-l2)',
           cursor: disabled ? 'not-allowed' : 'pointer',
           opacity: disabled ? 0.5 : 1,
         },
@@ -667,8 +667,8 @@ function DeployCard(props: { t: T }): React.ReactElement {
         spellCheck: false,
         onChange: (e: any) => setForm({ ...form, [key]: e.target.value }),
         style: {
-          background: 'rgba(0,0,0,0.25)',
-          border: '1px solid rgba(255,255,255,0.12)',
+          background: 'var(--dsw-alias-bg-layer-2)',
+          border: '1px solid var(--dsw-alias-border-l1)',
           borderRadius: '6px',
           color: 'inherit',
           padding: '5px 8px',
@@ -686,14 +686,14 @@ function DeployCard(props: { t: T }): React.ReactElement {
       { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' } },
       React.createElement('span', { style: { fontSize: '13px', fontWeight: 600 } }, t('deploy.title')),
       st?.installing
-        ? React.createElement('span', { style: { fontSize: '11px', fontWeight: 600, color: '#fbbf24' } }, t('deploy.installing'))
+        ? React.createElement('span', { style: { fontSize: '11px', fontWeight: 600, color: 'var(--dsw-alias-state-warn-primary)' } }, t('deploy.installing'))
         : React.createElement(
             'button',
             {
               onClick: () => setShowSettings(!showSettings),
               style: {
                 background: 'transparent',
-                border: '1px solid rgba(255,255,255,0.18)',
+                border: '1px solid var(--dsw-alias-border-l2)',
                 borderRadius: '6px',
                 color: 'inherit',
                 fontSize: '11px',
@@ -721,7 +721,7 @@ function DeployCard(props: { t: T }): React.ReactElement {
           marginTop: '8px',
           maxHeight: '180px',
           overflow: 'auto',
-          background: 'rgba(0,0,0,0.3)',
+          background: 'var(--dsw-alias-bg-layer-2)',
           borderRadius: '6px',
           padding: '8px',
           fontSize: '10px',
@@ -768,7 +768,7 @@ function DeployCard(props: { t: T }): React.ReactElement {
     note
       ? React.createElement(
           'div',
-          { style: { fontSize: '12px', marginTop: '8px', color: note.ok ? '#4ade80' : '#f87171' } },
+          { style: { fontSize: '12px', marginTop: '8px', color: note.ok ? 'var(--dsw-alias-state-success-primary)' : 'var(--dsw-alias-state-error-primary)' } },
           note.text,
         )
       : null,
@@ -922,8 +922,8 @@ function ProtectCard(props: { t: T }): React.ReactElement {
           setForm({ ...form, [key]: e.target.value })
         },
         style: {
-          background: 'rgba(0,0,0,0.25)',
-          border: '1px solid rgba(255,255,255,0.12)',
+          background: 'var(--dsw-alias-bg-layer-2)',
+          border: '1px solid var(--dsw-alias-border-l1)',
           borderRadius: '6px',
           color: 'inherit',
           padding: '5px 8px',
@@ -969,7 +969,7 @@ function ProtectCard(props: { t: T }): React.ReactElement {
             borderRadius: '6px',
             fontSize: '12px',
             fontWeight: 600,
-            background: 'var(--dsh-primary, #3b82f6)',
+            background: 'var(--dsw-alias-brand-primary)',
             color: '#fff',
             border: 'none',
             cursor: busy ? 'not-allowed' : 'pointer',
@@ -983,7 +983,7 @@ function ProtectCard(props: { t: T }): React.ReactElement {
     note
       ? React.createElement(
           'div',
-          { style: { fontSize: '12px', marginTop: '8px', color: note.ok ? '#4ade80' : '#f87171', wordBreak: 'break-word' } },
+          { style: { fontSize: '12px', marginTop: '8px', color: note.ok ? 'var(--dsw-alias-state-success-primary)' : 'var(--dsw-alias-state-error-primary)', wordBreak: 'break-word' } },
           note.text,
         )
       : null,
@@ -995,7 +995,7 @@ function ExemptionCard(props: { t: T }): React.ReactElement {
   const { list, online, refresh } = useExemptions()
   const entries: ExemptionEntry[] = list?.entries || []
   const stats = list?.stats
-  const tone = !online ? '#9ca3af' : entries.length ? '#fbbf24' : '#4ade80'
+  const tone = !online ? 'var(--dsw-alias-label-secondary)' : entries.length ? 'var(--dsw-alias-state-warn-primary)' : 'var(--dsw-alias-state-success-primary)'
 
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
@@ -1061,7 +1061,7 @@ function ExemptionCard(props: { t: T }): React.ReactElement {
     {
       style: {
         ...card,
-        borderColor: entries.length ? 'rgba(245,158,11,0.35)' : 'rgba(255,255,255,0.12)',
+        borderColor: entries.length ? 'var(--dsw-alias-state-warn-primary)' : 'var(--dsw-alias-border-l1)',
       },
     },
     React.createElement(
@@ -1087,7 +1087,7 @@ function ExemptionCard(props: { t: T }): React.ReactElement {
                 onClick: beginEdit,
                 style: {
                   background: 'transparent',
-                  border: '1px solid rgba(255,255,255,0.18)',
+                  border: '1px solid var(--dsw-alias-border-l2)',
                   borderRadius: '6px',
                   color: 'inherit',
                   fontSize: '11px',
@@ -1101,7 +1101,7 @@ function ExemptionCard(props: { t: T }): React.ReactElement {
       ),
     ),
 
-    !online && React.createElement('div', { style: { ...dim, color: '#fbbf24' } }, t('exempt.apiDownHint')),
+    !online && React.createElement('div', { style: { ...dim, color: 'var(--dsw-alias-state-warn-primary)' } }, t('exempt.apiDownHint')),
 
     editing
       ? React.createElement(
@@ -1116,8 +1116,8 @@ function ExemptionCard(props: { t: T }): React.ReactElement {
             style: {
               width: '100%',
               boxSizing: 'border-box',
-              background: 'rgba(0,0,0,0.25)',
-              border: '1px solid rgba(255,255,255,0.12)',
+              background: 'var(--dsw-alias-bg-layer-2)',
+              border: '1px solid var(--dsw-alias-border-l1)',
               borderRadius: '6px',
               color: 'inherit',
               padding: '8px',
@@ -1139,7 +1139,7 @@ function ExemptionCard(props: { t: T }): React.ReactElement {
                   borderRadius: '6px',
                   fontSize: '12px',
                   fontWeight: 600,
-                  background: 'var(--dsh-primary, #3b82f6)',
+                  background: 'var(--dsw-alias-brand-primary)',
                   color: '#fff',
                   border: 'none',
                   cursor: busy ? 'not-allowed' : 'pointer',
@@ -1159,7 +1159,7 @@ function ExemptionCard(props: { t: T }): React.ReactElement {
                   fontSize: '12px',
                   background: 'transparent',
                   color: 'inherit',
-                  border: '1px solid rgba(255,255,255,0.18)',
+                  border: '1px solid var(--dsw-alias-border-l2)',
                   cursor: busy ? 'not-allowed' : 'pointer',
                 },
               },
@@ -1179,7 +1179,7 @@ function ExemptionCard(props: { t: T }): React.ReactElement {
                 style: {
                   padding: '8px 10px',
                   borderRadius: '8px',
-                  background: 'rgba(0,0,0,0.18)',
+                  background: 'var(--dsw-alias-bg-layer-2)',
                   marginBottom: '6px',
                 },
               },
@@ -1188,7 +1188,7 @@ function ExemptionCard(props: { t: T }): React.ReactElement {
                 { style: { display: 'flex', justifyContent: 'space-between', gap: '8px' } },
                 React.createElement(
                   'code',
-                  { style: { fontSize: '12px', wordBreak: 'break-all', color: '#fde68a' } },
+                  { style: { fontSize: '12px', wordBreak: 'break-all', color: 'var(--dsw-alias-state-warn-primary)' } },
                   e.term,
                 ),
                 React.createElement(
@@ -1221,7 +1221,7 @@ function ExemptionCard(props: { t: T }): React.ReactElement {
     note
       ? React.createElement(
           'div',
-          { style: { fontSize: '12px', marginTop: '8px', color: note.includes(t('sandbox.fail')) ? '#f87171' : '#4ade80' } },
+          { style: { fontSize: '12px', marginTop: '8px', color: note.includes(t('sandbox.fail')) ? 'var(--dsw-alias-state-error-primary)' : 'var(--dsw-alias-state-success-primary)' } },
           note,
         )
       : null,
@@ -1302,7 +1302,7 @@ function KeyConfigCard(props: { t: T }): React.ReactElement {
       React.createElement('span', { style: { fontSize: '13px', fontWeight: 600 } }, t('key.title')),
       React.createElement(
         'span',
-        { style: { fontSize: '11px', fontWeight: 600, color: isPassword ? '#c084fc' : '#9ca3af' } },
+        { style: { fontSize: '11px', fontWeight: 600, color: isPassword ? 'var(--dsw-alias-brand-primary)' : 'var(--dsw-alias-label-secondary)' } },
         isPassword ? t('key.mode.password') : t('key.mode.file'),
       ),
     ),
@@ -1325,8 +1325,8 @@ function KeyConfigCard(props: { t: T }): React.ReactElement {
         onChange: (e: any) => setPw(e.target.value),
         style: {
           flex: '1 1 200px',
-          background: 'rgba(0,0,0,0.25)',
-          border: '1px solid rgba(255,255,255,0.12)',
+          background: 'var(--dsw-alias-bg-layer-2)',
+          border: '1px solid var(--dsw-alias-border-l1)',
           borderRadius: '6px',
           color: 'inherit',
           padding: '6px 8px',
@@ -1340,8 +1340,8 @@ function KeyConfigCard(props: { t: T }): React.ReactElement {
         onChange: (e: any) => setPw2(e.target.value),
         style: {
           flex: '1 1 200px',
-          background: 'rgba(0,0,0,0.25)',
-          border: '1px solid rgba(255,255,255,0.12)',
+          background: 'var(--dsw-alias-bg-layer-2)',
+          border: '1px solid var(--dsw-alias-border-l1)',
           borderRadius: '6px',
           color: 'inherit',
           padding: '6px 8px',
@@ -1358,7 +1358,7 @@ function KeyConfigCard(props: { t: T }): React.ReactElement {
             borderRadius: '6px',
             fontSize: '12px',
             fontWeight: 600,
-            background: 'var(--dsh-primary, #3b82f6)',
+            background: 'var(--dsw-alias-brand-primary)',
             color: '#fff',
             border: 'none',
             cursor: busy ? 'not-allowed' : 'pointer',
@@ -1379,7 +1379,7 @@ function KeyConfigCard(props: { t: T }): React.ReactElement {
                 fontSize: '12px',
                 background: 'transparent',
                 color: 'inherit',
-                border: '1px solid rgba(255,255,255,0.18)',
+                border: '1px solid var(--dsw-alias-border-l2)',
                 cursor: busy ? 'not-allowed' : 'pointer',
               },
             },
@@ -1390,7 +1390,7 @@ function KeyConfigCard(props: { t: T }): React.ReactElement {
     msg
       ? React.createElement(
           'div',
-          { style: { fontSize: '12px', marginTop: '8px', color: msg.ok ? '#4ade80' : '#f87171' } },
+          { style: { fontSize: '12px', marginTop: '8px', color: msg.ok ? 'var(--dsw-alias-state-success-primary)' : 'var(--dsw-alias-state-error-primary)' } },
           msg.text,
           msg.ok ? ` · ${t('key.restartHint')}` : '',
         )
@@ -1456,7 +1456,7 @@ function Panel(props: { t: T }): React.ReactElement {
         maxWidth: '960px',
         margin: '0 auto',
         fontFamily: 'system-ui, -apple-system, sans-serif',
-        color: 'var(--dsh-text, #e2e8f0)',
+        color: 'var(--dsw-alias-label-primary)',
       },
     },
     React.createElement(
@@ -1478,19 +1478,19 @@ function Panel(props: { t: T }): React.ReactElement {
       React.createElement(StatusCard, {
         title: t('gateway.card'),
         badge: gw?.online ? t('gateway.active') : t('gateway.offline'),
-        tone: gw?.online ? '#4ade80' : '#f87171',
+        tone: gw?.online ? 'var(--dsw-alias-state-success-primary)' : 'var(--dsw-alias-state-error-primary)',
         rows: [String(gw?.url || ''), String(stats?.active_vault_mappings ?? 0)],
       }),
       React.createElement(StatusCard, {
         title: t('classifier.card'),
         badge: status?.classifier.online ? t('classifier.online') : t('classifier.offline'),
-        tone: status?.classifier.online ? '#60a5fa' : '#9ca3af',
+        tone: status?.classifier.online ? 'var(--dsw-alias-brand-primary)' : 'var(--dsw-alias-label-secondary)',
         rows: [String(status?.classifier.url || ''), String(status?.classifier.modelAlias || '')],
       }),
       React.createElement(StatusCard, {
         title: t('vault.card'),
         badge: persist?.enabled ? t('vault.enabled') : t('vault.memory'),
-        tone: persist?.enabled ? '#c084fc' : '#9ca3af',
+        tone: persist?.enabled ? 'var(--dsw-alias-brand-primary)' : 'var(--dsw-alias-label-secondary)',
         rows: [String(persist?.vault_rows ?? 0), String(persist?.key_source === 'password' ? 'PBKDF2' : 'key file')],
       }),
     ),
@@ -1499,10 +1499,10 @@ function Panel(props: { t: T }): React.ReactElement {
       'div',
       { style: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px', marginBottom: '16px' } },
       [
-        { label: t('metric.redacted'), value: stats?.total_redacted_secrets ?? 0, color: '#38bdf8' },
-        { label: t('metric.restored'), value: stats?.total_restored_secrets ?? 0, color: '#34d399' },
-        { label: t('metric.vault'), value: persist?.vault_rows ?? stats?.active_vault_mappings ?? 0, color: '#fbbf24' },
-        { label: t('metric.hits'), value: stats?.layer1.hits ?? 0, color: '#a78bfa' },
+        { label: t('metric.redacted'), value: stats?.total_redacted_secrets ?? 0, color: 'var(--dsw-alias-brand-primary)' },
+        { label: t('metric.restored'), value: stats?.total_restored_secrets ?? 0, color: 'var(--dsw-alias-state-success-primary)' },
+        { label: t('metric.vault'), value: persist?.vault_rows ?? stats?.active_vault_mappings ?? 0, color: 'var(--dsw-alias-state-warn-primary)' },
+        { label: t('metric.hits'), value: stats?.layer1.hits ?? 0, color: 'var(--dsw-alias-brand-primary)' },
       ].map((m, i) =>
         React.createElement(
           'div',
@@ -1538,7 +1538,7 @@ function Panel(props: { t: T }): React.ReactElement {
               borderRadius: '6px',
               fontSize: '12px',
               fontWeight: 600,
-              background: 'var(--dsh-primary, #3b82f6)',
+              background: 'var(--dsw-alias-brand-primary)',
               color: '#fff',
               border: 'none',
               cursor: running || !gw?.online ? 'not-allowed' : 'pointer',
@@ -1555,8 +1555,8 @@ function Panel(props: { t: T }): React.ReactElement {
         style: {
           width: '100%',
           boxSizing: 'border-box',
-          background: 'rgba(0,0,0,0.25)',
-          border: '1px solid rgba(255,255,255,0.1)',
+          background: 'var(--dsw-alias-bg-layer-2)',
+          border: '1px solid var(--dsw-alias-border-l1)',
           borderRadius: '6px',
           color: 'inherit',
           padding: '8px',
@@ -1570,7 +1570,7 @@ function Panel(props: { t: T }): React.ReactElement {
           { style: { marginTop: '10px', fontSize: '12px' } },
           React.createElement(
             'div',
-            { style: { color: result.ok ? '#4ade80' : '#f87171', marginBottom: '6px' } },
+            { style: { color: result.ok ? 'var(--dsw-alias-state-success-primary)' : 'var(--dsw-alias-state-error-primary)', marginBottom: '6px' } },
             result.ok ? t('sandbox.ok') : t('sandbox.fail'),
             result.ok && result.layer1_applied ? ` · ${t('sandbox.hitLayer1')}` : '',
             result.ok && result.exempt_spans
@@ -1583,7 +1583,7 @@ function Panel(props: { t: T }): React.ReactElement {
               style: {
                 margin: 0,
                 padding: '8px',
-                background: 'rgba(0,0,0,0.3)',
+                background: 'var(--dsw-alias-bg-layer-2)',
                 borderRadius: '4px',
                 overflowX: 'auto',
                 fontSize: '11px',
@@ -1601,7 +1601,7 @@ function Panel(props: { t: T }): React.ReactElement {
     ),
 
     error
-      ? React.createElement('div', { style: { ...dim, marginTop: '10px', color: '#f87171' } }, error)
+      ? React.createElement('div', { style: { ...dim, marginTop: '10px', color: 'var(--dsw-alias-state-error-primary)' } }, error)
       : null,
   )
 }
