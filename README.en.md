@@ -34,7 +34,7 @@ Designed to accompany [amwangfan/privacy-gateway](https://github.com/amwangfan/p
 6. **🔓 Exemption whitelist and in-page banner**:
    - The panel lists every term whose filtering is currently paused (scope, reason, actor, expiry, hits) and lets you **edit it line by line**: one term per line, removing a line revokes it.
    - When an exemption is added or revoked, an **in-page banner** (not a browser `alert`) reports which term, why, and who did it.
-7. **🛡️ Credential-protected model entry**: copy an existing provider into a gateway-routed route in the model list while the original returns to the direct route.
+7. **🛡️ Credential-protected model entry**: copy an existing provider into a gateway-routed route in the model list while the original returns to the direct route. For the **built-in DeepSeek provider**, which is a singleton and cannot be copied, the panel reads its own configuration and adds an OpenAI-compatible provider pointing at the gateway's `/deepseek` prefix (reusing `DEEPSEEK_API_KEY`), leaving the original direct route in place.
 8. **🚀 Deployment controls**: download and deploy the gateway or the model, start/stop/restart them, read their logs, and edit their addresses and ports — all from the panel.
 
 ---
@@ -49,6 +49,8 @@ local gateway and writes it into the model list in `~/.dsh/settings.yaml`, while
 |---|---|---|
 | `自建聚合` | direct backend `:8316` | no redaction wanted (fastest, no added latency) |
 | `自建聚合(凭据保护)` | through the gateway `:8317` | redaction wanted |
+| `DeepSeek 官方` (built-in) | direct `api.deepseek.com` | official API, direct |
+| `DeepSeek 官方(凭据保护)` | through the gateway `:8317/deepseek` | official API with redaction |
 
 **Selecting the entry marked "credential-protected" routes that model through the gateway.** No
 restart is needed: `dsh-settings-file` watches the file with chokidar and publishes external edits

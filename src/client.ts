@@ -100,6 +100,11 @@ const DICT = {
     'protect.gatewayUrl': '网关地址（保护链路）',
     'protect.directUrl': '直连地址（原链路）',
     'protect.selected': '在模型列表里选带「凭据保护」的条目即走网关',
+    'protect.builtinTitle': '内置 DeepSeek（官方 API）',
+    'protect.builtinHint': '内置 provider 是单例，无法复制；改为新增一条 OpenAI 兼容的 provider，指向本网关的 DeepSeek 前缀，密钥沿用 DEEPSEEK_API_KEY。',
+    'protect.builtinApply': '添加受保护入口',
+    'protect.builtinDone': '已添加 {name}（{models} 个模型）',
+    'protect.builtinPrefix': '网关前缀',
     'deploy.title': '网关与模型部署',
     'deploy.installing': '安装中…',
     'deploy.install': '下载并部署',
@@ -207,6 +212,11 @@ const DICT = {
     'protect.gatewayUrl': 'Gateway URL (protected route)',
     'protect.directUrl': 'Direct URL (original route)',
     'protect.selected': 'Pick the entry marked "credential-protected" in the model list to go through the gateway',
+    'protect.builtinTitle': 'Built-in DeepSeek (official API)',
+    'protect.builtinHint': 'The built-in provider is a singleton and cannot be copied, so this adds an OpenAI-compatible provider pointing at this gateway\'s DeepSeek prefix, reusing DEEPSEEK_API_KEY.',
+    'protect.builtinApply': 'Add protected entry',
+    'protect.builtinDone': 'Added {name} ({models} models)',
+    'protect.builtinPrefix': 'Gateway prefix',
     'deploy.title': 'Gateway & model deployment',
     'deploy.installing': 'Installing…',
     'deploy.install': 'Download & deploy',
@@ -773,14 +783,23 @@ function ProtectCard(props: { t: T }): React.ReactElement {
   const [note, setNote] = useState<{ ok: boolean; text: string } | null>(null)
   const [form, setForm] = useState({ source: '', gateway: '', direct: '' })
   const [touched, setTouched] = useState(false)
+  const [builtin, setBuiltin] = useState<any>(null)
+  const [builtinNote, setBuiltinNote] = useState<{ ok: boolean; text: string } | null>(null)
+  const [prefix, setPrefix] = useState('/deepseek')
 
   const load = useCallback(async () => {
     try {
-      const [p, d] = await Promise.all([
+      const [p, d, b] = await Promise.all([
         fetch(`/api/${PKG}/protect`).then((r) => r.json()),
         fetch(`/api/${PKG}/deploy`).then((r) => r.json()),
+        fetch(`/api/${PKG}/protect`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ action: 'builtin_status' }),
+        }).then((r) => r.json()),
       ])
       setInfo(p)
+      if (b && b.ok) setBuiltin(b.builtin)
       setForm((prev) => {
         if (touched) return prev
         const found: any[] = p.gateway_providers || []
@@ -847,6 +866,45 @@ function ProtectCard(props: { t: T }): React.ReactElement {
       setNote({ ok: false, text: e?.message || t('sandbox.fail') })
     } finally {
       setBusy(false)
+    }
+  }
+
+  const addBuiltin = async () => {
+    setBusy('builtin')
+    setBuiltinNote(null)
+    try {
+      const gw = String(form.gateway || '').replace(/\/v1\/?$/, '').replace(/\/+$/, '')
+      const pfx = prefix.startsWith('/') ? prefix : `/${prefix}`
+      const base = `${gw}${pfx}/v1`
+      const r = await fetch(`/api/${PKG}/protect`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          action: 'builtin',
+          name: 'deepseek-protected',
+          display_name: 'DeepSeek 官方(凭据保护)',
+          base_url: base,
+          api_key_env: (builtin && builtin.api_key_env) || 'DEEPSEEK_API_KEY',
+          models: (builtin && builtin.models) || [],
+          default_context_window: builtin && builtin.default_context_window,
+        }),
+      })
+      const d = await r.json()
+      if (!d.ok) {
+        setBuiltinNote({ ok: false, text: d.error || t('sandbox.fail') })
+        return
+      }
+      setBuiltinNote({
+        ok: true,
+        text:
+          d.action === 'noop'
+            ? t('protect.noop')
+            : t('protect.builtinDone', { name: d.display_name || d.provider, models: d.models ?? 0 }),
+      })
+    } catch (e: any) {
+      setBuiltinNote({ ok: false, text: e?.message || t('sandbox.fail') })
+    } finally {
+      setBusy(null)
     }
   }
 

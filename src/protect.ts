@@ -260,6 +260,114 @@ export function applyProtectedProvider(
   }
 }
 
+/**
+ * Create a gateway-routed provider entry for a **built-in** provider that cannot
+ * be twinned.
+ *
+ * The built-in DeepSeek provider (`llm-deepseek`) is a singleton: there is one of
+ * it, so it cannot be copied the way an `llm-pi-ai` provider can. The protected
+ * route is therefore a new OpenAI-compatible provider row that points at this
+ * gateway's DeepSeek prefix, using the same API key reference as the built-in
+ * provider. The built-in row stays on api.deepseek.com, so both routes remain
+ * selectable.
+ *
+ * Options: name, displayName, modelsNs, apiKeyEnv, models, defaultContextWindow,
+ * baseURL, api (defaults to openai-completions, which is what the gateway's
+ * /v1/chat/completions pass-through speaks).
+ */
+export function addGatewayProvider(opts: {
+  name: string
+  displayName: string
+  baseURL: string
+  apiKeyEnv: string
+  modelsNs?: string
+  models?: Array<Record<string, unknown>>
+  defaultContextWindow?: number
+  api?: string
+}): ProtectResult {
+  const file = settingsPath()
+  let cfg: any
+  try {
+    cfg = readSettings()
+  } catch (e: any) {
+    return { ok: false, error: e?.message || String(e) }
+  }
+  if (!opts.name || !opts.baseURL) {
+    return { ok: false, error: 'a provider name and gateway URL are required', settings_file: file }
+  }
+
+  const ns = opts.modelsNs || 'llm-pi-ai'
+  const block = cfg?.[ns]
+  if (!block || typeof block !== 'object') {
+    return { ok: false, error: `settings namespace ${ns} is missing`, settings_file: file }
+  }
+  if (!block.providers || typeof block.providers !== 'object') {
+    block.providers = {}
+  }
+
+  const existed = Boolean(block.providers[opts.name])
+  const existing = existed ? block.providers[opts.name] : null
+  const same =
+    existed &&
+    existing &&
+    String(existing.baseURL || '') === opts.baseURL &&
+    String(existing.displayName || '') === opts.displayName &&
+    String(existing[MANAGED_KEY] || '') === 'true'
+  if (same) {
+    return {
+      ok: true,
+      action: 'noop',
+      provider: opts.name,
+      display_name: opts.displayName,
+      base_url: opts.baseURL,
+      models: Array.isArray(existing.models) ? existing.models.length : 0,
+      settings_file: file,
+    }
+  }
+
+  let backup = ''
+  try {
+    backup = `${file}.bak-plugin-${Date.now()}`
+    copyFileSync(file, backup)
+    const entry: Record<string, unknown> = {
+      displayName: opts.displayName,
+      apiKeyEnv: opts.apiKeyEnv,
+      api: opts.api || 'openai-completions',
+      baseURL: opts.baseURL,
+      [MANAGED_KEY]: true,
+    }
+    if (opts.defaultContextWindow) entry.defaultContextWindow = opts.defaultContextWindow
+    if (opts.models && opts.models.length) entry.models = JSON.parse(JSON.stringify(opts.models))
+    block.providers[opts.name] = entry
+    writeFileSync(file, yaml.dump(cfg, { noRefs: true, lineWidth: 120, quotingType: '"' }), 'utf8')
+  } catch (e: any) {
+    return { ok: false, error: e?.message || String(e), settings_file: file }
+  }
+
+  return {
+    ok: true,
+    action: existed ? 'updated' : 'created',
+    provider: opts.name,
+    display_name: opts.displayName,
+    base_url: opts.baseURL,
+    models: (opts.models || []).length,
+    settings_file: file,
+    backup,
+  }
+}
+
+/** Read a settings namespace's provider/model block verbatim (for mirroring). */
+export function readNamespace(ns: string): { ok: boolean; data?: any; error?: string } {
+  try {
+    const cfg: any = readSettings()
+    const block = cfg?.[ns]
+    if (!block) return { ok: false, error: `settings namespace ${ns} not found` }
+    return { ok: true, data: block }
+  } catch (e: any) {
+    return { ok: false, error: e?.message || String(e) }
+  }
+}
+
 /** Remove a previously created protected twin. */
 export function removeProtectedProvider(name: string): ProtectResult {
   const file = settingsPath()

@@ -3,9 +3,11 @@ import type { Context } from '@deepseek-ai/cordis'
 import type { WebRoute } from '@deepseek-ai/dsh-host-webserver'
 import { managerAvailable, runManager } from './manager.js'
 import {
+  addGatewayProvider,
   applyProtectedProvider,
   detectGatewayProviders,
   listProviders,
+  readNamespace,
   removeProtectedProvider,
 } from './protect.js'
 import type {
@@ -380,6 +382,46 @@ export function apply(ctx: Context, config?: Config): void {
             provider?: string
           }
           const action = String(body.action || 'apply')
+          if (action === 'builtin_status') {
+            // Everything the panel needs to mirror the built-in provider.
+            const builtin = readNamespace('llm-deepseek')
+            writeJson(res, 200, {
+              ok: true,
+              builtin: builtin.data
+                ? {
+                    namespace: 'llm-deepseek',
+                    models: builtin.data.models || [],
+                    default_context_window: builtin.data.defaultContextWindow,
+                    base_url: builtin.data.baseURL || '',
+                    api_key_env: 'DEEPSEEK_API_KEY',
+                  }
+                : null,
+              error: builtin.error,
+            })
+            return
+          }
+          if (action === 'builtin') {
+            // Built-in providers cannot be twinned, so this adds a gateway-routed
+            // OpenAI-compatible row using the same API key reference as the
+            // built-in provider, leaving the original on its own endpoint.
+            const name = String((body as any).name || 'deepseek-protected')
+            const displayName = String((body as any).display_name || 'DeepSeek 官方(凭据保护)')
+            const baseUrl = String((body as any).base_url || '')
+            const apiKeyEnv = String((body as any).api_key_env || 'DEEPSEEK_API_KEY')
+            const models = Array.isArray((body as any).models) ? (body as any).models : []
+            const ctxWindow = Number((body as any).default_context_window || 0) || undefined
+            writeJson(res, 200, addGatewayProvider({
+              name,
+              displayName,
+              baseURL: baseUrl,
+              apiKeyEnv,
+              modelsNs: String((body as any).models_ns || 'llm-pi-ai'),
+              models,
+              defaultContextWindow: ctxWindow,
+              api: String((body as any).api || 'openai-completions'),
+            }))
+            return
+          }
           if (action === 'remove') {
             writeJson(res, 200, removeProtectedProvider(String(body.provider || '')))
             return
