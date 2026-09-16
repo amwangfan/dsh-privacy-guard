@@ -283,10 +283,31 @@ export function apply(ctx: Context, config?: Config): void {
     },
   ]
 
+  // The web carrier service exposes `register(route)`, NOT `addRoute`. Calling a
+  // method that does not exist here used to be swallowed by a truthiness guard,
+  // so the plugin loaded "successfully" while registering zero routes and every
+  // panel request 404'd — which the UI could only report as "offline".
   const webServer = (ctx as any).webServer
-  if (webServer?.addRoute) {
-    for (const r of routes) {
-      webServer.addRoute(r)
-    }
+  if (typeof webServer?.register !== 'function') {
+    throw new Error(
+      'dsh-privacy-guard: the webServer service has no register(route); cannot serve the panel API',
+    )
+  }
+  const disposers: Array<() => void> = []
+  for (const r of routes) {
+    const dispose = webServer.register(r)
+    if (typeof dispose === 'function') disposers.push(dispose)
+  }
+  // Owned by this fiber so a stop, update or patch reload removes the routes.
+  if (typeof (ctx as any).effect === 'function') {
+    (ctx as any).effect(() => () => {
+      for (const dispose of disposers) {
+        try {
+          dispose()
+        } catch {
+          /* the carrier is going away anyway */
+        }
+      }
+    })
   }
 }
