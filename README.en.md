@@ -134,11 +134,11 @@ Self-check:
 ```json
 {
   "id": "dsh-privacy-guard",
-  "name": "隐私脱密守护",
-  "nameEn": "Privacy Guard",
+  "name": "隐私保护",
+  "nameEn": "Privacy Protection",
   "author": "amwangfan",
-  "description": "本地隐私脱敏防线看板：实时监控 API Token、私钥、数据库密码出网脱敏与流式还原状态，内置 Qwen2.5-0.5B 残差模型健康探针与在线泄密探测沙箱。",
-  "descriptionEn": "Local privacy defense dashboard: monitors real-time credential redaction and DFA stream restoration, featuring local Qwen2.5-0.5B health probes and an interactive leak-test sandbox.",
+  "description": "DSH 隐私保护插件：本地网关凭据脱敏与流式还原，豁免白名单（一行一词、可编辑），加密密钥管理，凭据保护模型入口，以及网关/小模型的下载部署与链接配置。",
+  "descriptionEn": "Privacy protection plugin for DSH: credential redaction and stream restoration through a local gateway, an editable exemption whitelist, encrypted key management, credential-protected model entries, and download/deploy plus link configuration for the gateway and local model.",
   "repo": "https://github.com/amwangfan/dsh-privacy-guard",
   "npm": "dsh-privacy-guard",
   "category": "security",
