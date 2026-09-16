@@ -88,6 +88,29 @@ const DICT = {
     'exempt.cancel': '取消',
     'exempt.applied': '白名单已更新（新增 {added}，撤销 {removed}）',
     'exempt.addedByPanel': '在插件面板中人工添加',
+    'deploy.title': '网关与模型部署',
+    'deploy.installing': '安装中…',
+    'deploy.install': '下载并部署',
+    'deploy.installBoth': '下载并部署缺失部分',
+    'deploy.start': '启动',
+    'deploy.stop': '停止',
+    'deploy.restart': '重启',
+    'deploy.running': '运行中',
+    'deploy.stopped': '未运行',
+    'deploy.missing': '未安装',
+    'deploy.ready': '已就绪',
+    'deploy.gateway': '脱密网关',
+    'deploy.model': '小模型',
+    'deploy.settings': '链接与端口',
+    'deploy.save': '保存并重启',
+    'deploy.saving': '应用中…',
+    'deploy.saved': '已应用（重启：{parts}）',
+    'deploy.nothingToDo': '无需改动',
+    'deploy.log': '查看日志',
+    'deploy.hideLog': '收起日志',
+    'deploy.linkHint': '模型可独立于网关运行；若模型在别处，把模型地址指向那台机器即可，本地模型无需启动。',
+    'deploy.installingHint': '正在后台下载或部署，可继续操作，稍后刷新查看进度。',
+    'deploy.weights': '权重',
     'banner.dismiss': '关闭',
     'error.noGateway': '无法连接隐私网关',
   },
@@ -160,6 +183,29 @@ const DICT = {
     'exempt.cancel': 'Cancel',
     'exempt.applied': 'Whitelist updated (+{added}, -{removed})',
     'exempt.addedByPanel': 'added by hand in the panel',
+    'deploy.title': 'Gateway & model deployment',
+    'deploy.installing': 'Installing…',
+    'deploy.install': 'Download & deploy',
+    'deploy.installBoth': 'Download & deploy what is missing',
+    'deploy.start': 'Start',
+    'deploy.stop': 'Stop',
+    'deploy.restart': 'Restart',
+    'deploy.running': 'running',
+    'deploy.stopped': 'stopped',
+    'deploy.missing': 'not installed',
+    'deploy.ready': 'ready',
+    'deploy.gateway': 'Gateway',
+    'deploy.model': 'Model',
+    'deploy.settings': 'Links and ports',
+    'deploy.save': 'Save and restart',
+    'deploy.saving': 'Applying…',
+    'deploy.saved': 'Applied (restarted: {parts})',
+    'deploy.nothingToDo': 'nothing to change',
+    'deploy.log': 'Show log',
+    'deploy.hideLog': 'Hide log',
+    'deploy.linkHint': 'The model runs independently of the gateway. If it lives elsewhere, point the model URL at that host and the local model need not run.',
+    'deploy.installingHint': 'Downloading or deploying in the background; keep working and refresh for progress.',
+    'deploy.weights': 'weights',
     'banner.dismiss': 'Dismiss',
     'error.noGateway': 'Cannot reach the privacy gateway',
   },
@@ -429,6 +475,269 @@ function NotificationBanner(props: { t: T }): React.ReactElement | null {
         '✕',
       ),
     ),
+  )
+}
+
+/** Deployment control: install, start/stop, and edit the links and ports. */
+function DeployCard(props: { t: T }): React.ReactElement {
+  const { t } = props
+  const [st, setSt] = useState<any>(null)
+  const [busy, setBusy] = useState<string | null>(null)
+  const [note, setNote] = useState<{ ok: boolean; text: string } | null>(null)
+  const [showSettings, setShowSettings] = useState(false)
+  const [showLog, setShowLog] = useState<'gateway' | 'model' | null>(null)
+  const [logText, setLogText] = useState('')
+  const [form, setForm] = useState<Record<string, string>>({})
+
+  const load = useCallback(async () => {
+    try {
+      const r = await fetch(`/api/${PKG}/deploy`)
+      const d = await r.json()
+      setSt(d)
+      setForm((prev) => {
+        if (Object.keys(prev).length) return prev
+        const c = d.config || {}
+        return {
+          model_url: String(c.model_url ?? ''),
+          backend_url: String(c.backend_url ?? ''),
+          gateway_port: String(c.gateway_port ?? ''),
+          model_port: String(c.model_port ?? ''),
+          model_gguf_url: String(c.model_gguf_url ?? ''),
+          model_binary_url: String(c.model_binary_url ?? ''),
+        }
+      })
+    } catch {
+      setSt(null)
+    }
+  }, [])
+
+  useEffect(() => {
+    load()
+    const timer = setInterval(load, st?.installing ? 3000 : 8000)
+    return () => clearInterval(timer)
+  }, [load, st?.installing])
+
+  const act = async (action: string, part = 'all', values?: Record<string, string>) => {
+    setBusy(action)
+    setNote(null)
+    try {
+      const r = await fetch(`/api/${PKG}/deploy`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ action, part, values }),
+      })
+      const d = await r.json()
+      if (!d.ok) {
+        setNote({ ok: false, text: d.error || t('sandbox.fail') })
+        return
+      }
+      if (action === 'config') {
+        const parts = (d.restarted || []).join(', ')
+        setNote({ ok: true, text: t('deploy.saved', { parts: parts || t('deploy.nothingToDo') }) })
+      } else if (action === 'install') {
+        setNote({ ok: true, text: d.detail || t('deploy.installingHint') })
+      }
+      await load()
+    } catch (e: any) {
+      setNote({ ok: false, text: e?.message || t('sandbox.fail') })
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const openLog = async (part: 'gateway' | 'model') => {
+    if (showLog === part) {
+      setShowLog(null)
+      return
+    }
+    setShowLog(part)
+    setLogText('…')
+    try {
+      const r = await fetch(`/api/${PKG}/deploy/logs?part=${part}&lines=120`)
+      const d = await r.json()
+      setLogText(d.text || '(empty)')
+    } catch {
+      setLogText('(unavailable)')
+    }
+  }
+
+  const row = (label: string, part: 'gateway' | 'model', info: any) => {
+    if (!info) return null
+    const running = info.active === 'active'
+    const tone = running ? '#4ade80' : info.ready ? '#fbbf24' : '#f87171'
+    const state = running ? t('deploy.running') : info.ready ? t('deploy.stopped') : t('deploy.missing')
+    return React.createElement(
+      'div',
+      { style: { padding: '8px 10px', borderRadius: '8px', background: 'rgba(0,0,0,0.18)', marginBottom: '6px' } },
+      React.createElement(
+        'div',
+        { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' } },
+        React.createElement('span', { style: { fontSize: '12px', fontWeight: 600 } }, label),
+        React.createElement('span', { style: { fontSize: '11px', fontWeight: 600, color: tone } }, `● ${state}`),
+      ),
+      React.createElement(
+        'div',
+        { style: { fontSize: '11px', opacity: 0.6, marginTop: '3px', wordBreak: 'break-all' } },
+        info.url + (part === 'model' ? ` · ${t('deploy.weights')} ${Math.round((info.weights_bytes || 0) / 1048576)} MiB` : ''),
+      ),
+      !info.ready && info.needs?.length
+        ? React.createElement(
+            'div',
+            { style: { fontSize: '11px', color: '#f87171', marginTop: '2px' } },
+            `${t('deploy.missing')}: ${info.needs.join(', ')}`,
+          )
+        : null,
+      React.createElement(
+        'div',
+        { style: { display: 'flex', gap: '6px', marginTop: '6px', flexWrap: 'wrap' } },
+        !info.ready
+          ? button(t('deploy.install'), () => act('install', part), busy === 'install')
+          : null,
+        running
+          ? button(t('deploy.stop'), () => act('stop', part), busy === 'stop')
+          : button(t('deploy.start'), () => act('start', part), busy === 'start'),
+        running ? button(t('deploy.restart'), () => act('restart', part), busy === 'restart') : null,
+        button(showLog === part ? t('deploy.hideLog') : t('deploy.log'), () => openLog(part), false),
+      ),
+    )
+  }
+
+  const button = (label: string, onClick: () => void, disabled: boolean) =>
+    React.createElement(
+      'button',
+      {
+        onClick,
+        disabled,
+        style: {
+          padding: '4px 10px',
+          borderRadius: '6px',
+          fontSize: '11px',
+          background: 'transparent',
+          color: 'inherit',
+          border: '1px solid rgba(255,255,255,0.18)',
+          cursor: disabled ? 'not-allowed' : 'pointer',
+          opacity: disabled ? 0.5 : 1,
+        },
+      },
+      label,
+    )
+
+  const field = (key: string, label: string, placeholder = '') =>
+    React.createElement(
+      'div',
+      { style: { display: 'flex', flexDirection: 'column', gap: '3px', flex: '1 1 240px' } },
+      React.createElement('label', { style: { fontSize: '11px', opacity: 0.7 } }, label),
+      React.createElement('input', {
+        value: form[key] ?? '',
+        placeholder,
+        spellCheck: false,
+        onChange: (e: any) => setForm({ ...form, [key]: e.target.value }),
+        style: {
+          background: 'rgba(0,0,0,0.25)',
+          border: '1px solid rgba(255,255,255,0.12)',
+          borderRadius: '6px',
+          color: 'inherit',
+          padding: '5px 8px',
+          fontSize: '11px',
+          fontFamily: 'monospace',
+        },
+      }),
+    )
+
+  return React.createElement(
+    'div',
+    { style: { ...card, marginTop: '16px' } },
+    React.createElement(
+      'div',
+      { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' } },
+      React.createElement('span', { style: { fontSize: '13px', fontWeight: 600 } }, t('deploy.title')),
+      st?.installing
+        ? React.createElement('span', { style: { fontSize: '11px', fontWeight: 600, color: '#fbbf24' } }, t('deploy.installing'))
+        : React.createElement(
+            'button',
+            {
+              onClick: () => setShowSettings(!showSettings),
+              style: {
+                background: 'transparent',
+                border: '1px solid rgba(255,255,255,0.18)',
+                borderRadius: '6px',
+                color: 'inherit',
+                fontSize: '11px',
+                padding: '2px 8px',
+                cursor: 'pointer',
+              },
+            },
+            t('deploy.settings'),
+          ),
+    ),
+    !st && React.createElement('div', { style: dim }, t('exempt.apiDownHint')),
+    st && row(t('deploy.gateway'), 'gateway', st.gateway),
+    st && row(t('deploy.model'), 'model', st.model),
+    st && (!st.gateway?.ready || !st.model?.ready)
+      ? React.createElement(
+          'div',
+          { style: { marginTop: '4px' } },
+          button(t('deploy.installBoth'), () => act('install', 'auto'), busy === 'install'),
+        )
+      : null,
+    showLog && React.createElement(
+      'pre',
+      {
+        style: {
+          marginTop: '8px',
+          maxHeight: '180px',
+          overflow: 'auto',
+          background: 'rgba(0,0,0,0.3)',
+          borderRadius: '6px',
+          padding: '8px',
+          fontSize: '10px',
+          fontFamily: 'monospace',
+          whiteSpace: 'pre-wrap',
+        },
+      },
+      logText,
+    ),
+    showSettings
+      ? React.createElement(
+          'div',
+          { style: { marginTop: '10px' } },
+          React.createElement('div', { style: { ...dim, marginBottom: '6px' } }, t('deploy.linkHint')),
+          React.createElement(
+            'div',
+            { style: { display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '8px' } },
+            field('model_url', 'LAYER1_URL', 'http://127.0.0.1:8319'),
+            field('backend_url', 'BACKEND_URL', 'http://127.0.0.1:8316'),
+          ),
+          React.createElement(
+            'div',
+            { style: { display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '8px' } },
+            field('gateway_port', 'GATEWAY_PORT', '8317'),
+            field('model_port', 'MODEL_PORT', '8319'),
+          ),
+          React.createElement(
+            'div',
+            { style: { display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '8px' } },
+            field('model_gguf_url', 'MODEL_GGUF_URL'),
+          ),
+          React.createElement(
+            'div',
+            { style: { display: 'flex', gap: '8px', flexWrap: 'wrap' } },
+            field('model_binary_url', 'MODEL_BINARY_URL'),
+          ),
+          React.createElement(
+            'div',
+            { style: { marginTop: '8px' } },
+            button(busy === 'config' ? t('deploy.saving') : t('deploy.save'), () => act('config', 'all', form), busy === 'config'),
+          ),
+        )
+      : null,
+    note
+      ? React.createElement(
+          'div',
+          { style: { fontSize: '12px', marginTop: '8px', color: note.ok ? '#4ade80' : '#f87171' } },
+          note.text,
+        )
+      : null,
   )
 }
 
@@ -958,6 +1267,8 @@ function Panel(props: { t: T }): React.ReactElement {
     React.createElement(ExemptionCard, { t }),
 
     React.createElement(KeyConfigCard, { t }),
+
+    React.createElement(DeployCard, { t }),
 
     React.createElement(
       'div',

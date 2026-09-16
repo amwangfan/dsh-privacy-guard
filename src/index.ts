@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { Context } from '@deepseek-ai/cordis'
 import type { WebRoute } from '@deepseek-ai/dsh-host-webserver'
+import { managerAvailable, runManager } from './manager.js'
 import type {
   DryRunRequest,
   DryRunResponse,
@@ -343,6 +344,63 @@ export function apply(ctx: Context, config?: Config): void {
           return
         }
         writeJson(res, 200, audit)
+      },
+    },
+    // ---- deployment control plane (drives scripts/privacy-manager.py) ----
+    {
+      kind: 'exact',
+      path: '/api/dsh-privacy-guard/deploy',
+      handler: async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
+        if (!managerAvailable()) {
+          writeJson(res, 503, {
+            ok: false,
+            error: 'privacy-manager.py not found on this host',
+          })
+          return
+        }
+        if (req.method === 'GET') {
+          writeJson(res, 200, await runManager(['status']))
+          return
+        }
+        try {
+          const raw = await readBody(req)
+          const body = JSON.parse(raw || '{}') as { action?: string; part?: string; values?: Record<string, string> }
+          const action = String(body.action || '')
+          const part = String(body.part || 'all')
+          switch (action) {
+            case 'install':
+              writeJson(res, 200, await runManager(['install', '--part', part]))
+              return
+            case 'start':
+            case 'stop':
+            case 'restart':
+              writeJson(res, 200, await runManager([action, '--part', part]))
+              return
+            case 'config': {
+              const values = body.values || {}
+              const args = ['config']
+              for (const [key, value] of Object.entries(values)) {
+                args.push('--set', `${key}=${value}`)
+              }
+              writeJson(res, 200, await runManager(args))
+              return
+            }
+            default:
+              writeJson(res, 400, { ok: false, error: `unknown action: ${action}` })
+          }
+        } catch (err: any) {
+          writeJson(res, 400, { ok: false, error: err?.message || 'invalid request body' })
+        }
+      },
+    },
+    {
+      kind: 'exact',
+      path: '/api/dsh-privacy-guard/deploy/logs',
+      handler: async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
+        const url = new URL(req.url || '/', 'http://127.0.0.1')
+        const part = url.searchParams.get('part') === 'model' ? 'model' : 'gateway'
+        const lines = Math.min(400, Math.max(10, Number(url.searchParams.get('lines') || 80) || 80))
+        writeJson(res, 200, await runManager(['logs', '--part', part, '--lines', String(lines)]))
       },
     },
     {
