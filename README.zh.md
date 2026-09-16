@@ -19,7 +19,7 @@ DeepSeek Harness (DSH) 隐私脱密守护插件 —— 为 DSH Web 控制台提�
    - 在 DSH 设置页面内直接内置交互式测试沙箱。
    - 贴入任意包含 Token、私钥或配置文本，纯本地调用网关仿真接口，毫秒级可视化查看出网时的占位符化结果，验证规则生效情况（完全不出网，安全可控）。
 4. **🔓 豁免名单与页内横幅提醒**：
-   - 面板实时列出「暂停过滤」的词：范围、理由、操作者、剩余有效期、命中次数。
+   - 面板实时列出「暂停过滤」的词：范围、理由、操作者、有效期、命中次数。
    - 一旦 AI 新增/撤销豁免，页面顶部弹出**页内横幅**（非浏览器 `alert`），写明「哪个词 + 什么理由 + 谁放的 + 多久后失效」。
 
 ---
@@ -30,8 +30,9 @@ DeepSeek Harness (DSH) 隐私脱密守护插件 —— 为 DSH Web 控制台提�
 
 | 约束 | 说明 |
 |---|---|
-| 必填理由 | `reason` 至少 8 字符；新增和撤销都必填，没有跳过参数 |
-| 强制过期 | 每条豁免都带 `expires_at`（默认 24 小时，硬上限 7 天），到期后过滤自动恢复 |
+| 理由 | AI 入口（CLI）强制要求非空理由；人工直接调网关接口可以不写 |
+| 有效期 | 默认长期有效，直到被撤销；需要临时豁免时可显式传 `expires_at` |
+| 可用代号 | `--term` 可传 vault 代号（如 `<SECRET_AWS_AKIA_1>`），网关自行解析，AI 不必接触明文 |
 | 作用范围 | `layer0`（正则层）/ `layer1`（0.5B 残差判定层）/ `all` |
 | 审计留痕 | `add` / `revoke` / `expire` / `hit` 全部追加到 `exemptions.jsonl` |
 | 精确匹配 | 按完整候选词做边界匹配，不会因为放行一个短词而放过包含它的真实密钥 |
@@ -40,7 +41,7 @@ DeepSeek Harness (DSH) 隐私脱密守护插件 —— 为 DSH Web 控制台提�
 ### 给 AI 的命令入口
 
 ```bash
-/root/privacy-gateway/scripts/privacy-exempt.sh allow  --term "<要放行的词>" --reason "<为什么它不敏感>" [--scope all|layer0|layer1] [--ttl 3600]
+/root/privacy-gateway/scripts/privacy-exempt.sh allow  --term "<要放行的词或 vault 代号>" --reason "<为什么它不敏感>" [--scope all|layer0|layer1]
 /root/privacy-gateway/scripts/privacy-exempt.sh revoke --term "<词>" --reason "<为什么可以恢复过滤>"
 /root/privacy-gateway/scripts/privacy-exempt.sh list
 /root/privacy-gateway/scripts/privacy-exempt.sh audit

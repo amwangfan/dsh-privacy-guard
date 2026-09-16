@@ -24,7 +24,7 @@ Designed to accompany [amwangfan/privacy-gateway](https://github.com/amwangfan/p
    - Built directly into the DSH Settings panel.
    - Paste any configuration or text with credentials to instantly preview redacted placeholders before actual LLM calls (100% local, zero WAN egress).
 5. **🔓 Exemption list and in-page banner**:
-   - The panel lists every term whose filtering is currently paused, with scope, reason, actor, remaining TTL, and hit count.
+   - The panel lists every term whose filtering is currently paused, with scope, reason, actor, expiry, and hit count.
    - When an agent adds or revokes an exemption, an **in-page banner** (not a browser `alert`) reports which term, why, who did it, and when it expires.
 
 ---
@@ -35,8 +35,9 @@ Designed to accompany [amwangfan/privacy-gateway](https://github.com/amwangfan/p
 
 | Constraint | Detail |
 |---|---|
-| Mandatory reason | `reason` >= 8 chars, required for both allow and revoke; there is no skip flag |
-| Mandatory expiry | every entry carries `expires_at` (default 24h, hard cap 7 days); redaction resumes automatically |
+| Reason | the agent entry point (CLI) requires a non-blank reason; the gateway HTTP API does not, so a human can set one without |
+| Expiry | permanent by default, until revoked; pass `expires_at` only when a temporary exemption is wanted |
+| Addressable by alias | `--term` accepts a vault alias such as `<SECRET_AWS_AKIA_1>`; the gateway resolves it, so the agent never handles plaintext |
 | Scope | `layer0` (regex), `layer1` (0.5B residual classifier), or `all` |
 | Audit trail | `add` / `revoke` / `expire` / `hit` all appended to `exemptions.jsonl` |
 | Exact matching | boundary-matched against whole candidates, so allowlisting a short word never leaks a real key that contains it |
@@ -45,7 +46,7 @@ Designed to accompany [amwangfan/privacy-gateway](https://github.com/amwangfan/p
 ### Agent entry point
 
 ```bash
-/root/privacy-gateway/scripts/privacy-exempt.sh allow  --term "<literal>" --reason "<why it is safe>" [--scope all|layer0|layer1] [--ttl 3600]
+/root/privacy-gateway/scripts/privacy-exempt.sh allow  --term "<literal or vault alias>" --reason "<why it is safe>" [--scope all|layer0|layer1]
 /root/privacy-gateway/scripts/privacy-exempt.sh revoke --term "<literal>" --reason "<why filtering can resume>"
 /root/privacy-gateway/scripts/privacy-exempt.sh list
 /root/privacy-gateway/scripts/privacy-exempt.sh audit

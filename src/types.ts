@@ -23,8 +23,13 @@ export interface ExemptionEntry {
   scope: 'all' | 'layer0' | 'layer1'
   reason: string
   actor: string
+  source: 'plain' | 'secret-alias'
+  /** The vault alias this exemption was created from, when it was created from one. */
+  placeholder: string
   created_at: number
+  /** 0 means no expiry: the exemption stays until it is revoked. */
   expires_at: number
+  permanent: boolean
   remaining_seconds: number
   hits: number
   last_hit_at: number
@@ -36,15 +41,14 @@ export interface ExemptionStats {
   file: string
   active_count: number
   total_count: number
+  permanent_count: number
   session_hits: number
   adds: number
   revokes: number
   api_calls: number
   next_expiry_at: number
   terms: string[]
-  default_ttl_seconds: number
-  max_ttl_seconds: number
-  min_reason_chars: number
+  min_term_chars: number
 }
 
 export interface ExemptionList {
