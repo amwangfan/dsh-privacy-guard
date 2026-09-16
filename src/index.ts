@@ -1,7 +1,14 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { Context } from '@deepseek-ai/cordis'
 import type { WebRoute } from '@deepseek-ai/dsh-host-webserver'
-import type { DryRunRequest, DryRunResponse, GatewayHealth, PrivacyGuardStatus } from './types.js'
+import type {
+  DryRunRequest,
+  DryRunResponse,
+  ExemptionAudit,
+  ExemptionList,
+  GatewayHealth,
+  PrivacyGuardStatus,
+} from './types.js'
 
 export const name = 'dsh-privacy-guard'
 export const inject = ['webServer']
@@ -111,9 +118,41 @@ export class PrivacyGuardService {
         redacted: data.redacted,
         vault_active: data.vault_active,
         layer1_applied: data.layer1_applied,
+        exempt_spans: data.exempt_spans,
+        exempt_terms: data.exempt_terms,
       }
     } catch (err: any) {
       return { ok: false, error: err?.message || 'Failed to call /privacy/dry-run' }
+    }
+  }
+
+  /**
+   * Active exemption list. This runs in the Host, not the browser, so the page
+   * never talks to the gateway directly (the control plane is loopback-only).
+   */
+  async getExemptions(): Promise<ExemptionList | null> {
+    try {
+      const resp = await fetch(`${this.gatewayUrl}/privacy/exemptions`, {
+        signal: AbortSignal.timeout(4000),
+      })
+      if (!resp.ok) return null
+      return (await resp.json()) as ExemptionList
+    } catch {
+      return null
+    }
+  }
+
+  /** Append-only audit trail of allow / revoke / expire / hit decisions. */
+  async getExemptionAudit(since = 0, limit = 40): Promise<ExemptionAudit | null> {
+    try {
+      const url = `${this.gatewayUrl}/privacy/exemptions/audit?since=${encodeURIComponent(
+        String(since),
+      )}&limit=${encodeURIComponent(String(limit))}`
+      const resp = await fetch(url, { signal: AbortSignal.timeout(4000) })
+      if (!resp.ok) return null
+      return (await resp.json()) as ExemptionAudit
+    } catch {
+      return null
     }
   }
 }
@@ -140,6 +179,38 @@ export function apply(ctx: Context, config?: Config): void {
           return
         }
         writeJson(res, 200, health)
+      },
+    },
+    {
+      kind: 'exact',
+      path: '/api/dsh-privacy-guard/exemptions',
+      handler: async (_req: IncomingMessage, res: ServerResponse): Promise<void> => {
+        const list = await service.getExemptions()
+        if (!list) {
+          writeJson(res, 503, {
+            ok: false,
+            error: 'Privacy Gateway offline or exemption API unavailable (restart the gateway after upgrading)',
+            count: 0,
+            entries: [],
+          })
+          return
+        }
+        writeJson(res, 200, list)
+      },
+    },
+    {
+      kind: 'exact',
+      path: '/api/dsh-privacy-guard/exemptions/audit',
+      handler: async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
+        const url = new URL(req.url || '/', 'http://127.0.0.1')
+        const since = Number(url.searchParams.get('since') || 0) || 0
+        const limit = Math.min(200, Math.max(1, Number(url.searchParams.get('limit') || 40) || 40))
+        const audit = await service.getExemptionAudit(since, limit)
+        if (!audit) {
+          writeJson(res, 503, { ok: false, error: 'Privacy Gateway offline', count: 0, records: [] })
+          return
+        }
+        writeJson(res, 200, audit)
       },
     },
     {

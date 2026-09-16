@@ -18,6 +18,58 @@ export interface PersistStats {
   custom_secrets_count?: number
 }
 
+export interface ExemptionEntry {
+  term: string
+  scope: 'all' | 'layer0' | 'layer1'
+  reason: string
+  actor: string
+  created_at: number
+  expires_at: number
+  remaining_seconds: number
+  hits: number
+  last_hit_at: number
+  expired: boolean
+}
+
+export interface ExemptionStats {
+  enabled: boolean
+  file: string
+  active_count: number
+  total_count: number
+  session_hits: number
+  adds: number
+  revokes: number
+  api_calls: number
+  next_expiry_at: number
+  terms: string[]
+  default_ttl_seconds: number
+  max_ttl_seconds: number
+  min_reason_chars: number
+}
+
+export interface ExemptionList {
+  ok: boolean
+  count: number
+  stats: ExemptionStats
+  entries: ExemptionEntry[]
+}
+
+export interface ExemptionAuditRecord {
+  ts: number
+  action: 'add' | 'revoke' | 'expire' | 'hit'
+  term: string
+  scope?: string
+  reason?: string
+  actor?: string
+  active_count?: number
+}
+
+export interface ExemptionAudit {
+  ok: boolean
+  count: number
+  records: ExemptionAuditRecord[]
+}
+
 export interface GatewayHealth {
   status: string
   uptime_seconds: number
@@ -28,6 +80,7 @@ export interface GatewayHealth {
   restore_outbound: boolean
   placeholder_prefix: string
   persist?: PersistStats
+  exemptions?: ExemptionStats
   layer1: Layer1Stats
 }
 
@@ -41,6 +94,8 @@ export interface DryRunResponse {
   redacted?: any
   vault_active?: number
   layer1_applied?: boolean
+  exempt_spans?: number
+  exempt_terms?: string[]
   error?: string
 }
 

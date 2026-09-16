@@ -23,6 +23,35 @@ Designed to accompany [amwangfan/privacy-gateway](https://github.com/amwangfan/p
 4. **🧪 Interactive Leak-Test Sandbox (Dry-Run Tester)**:
    - Built directly into the DSH Settings panel.
    - Paste any configuration or text with credentials to instantly preview redacted placeholders before actual LLM calls (100% local, zero WAN egress).
+5. **🔓 Exemption list and in-page banner**:
+   - The panel lists every term whose filtering is currently paused, with scope, reason, actor, remaining TTL, and hit count.
+   - When an agent adds or revokes an exemption, an **in-page banner** (not a browser `alert`) reports which term, why, who did it, and when it expires.
+
+---
+
+## 🔓 Exemptions (allowlist)
+
+**Default posture: everything is filtered.** An exemption pauses redaction for one exact literal term; it is not a global off switch, and the gateway enforces these constraints in code:
+
+| Constraint | Detail |
+|---|---|
+| Mandatory reason | `reason` >= 8 chars, required for both allow and revoke; there is no skip flag |
+| Mandatory expiry | every entry carries `expires_at` (default 24h, hard cap 7 days); redaction resumes automatically |
+| Scope | `layer0` (regex), `layer1` (0.5B residual classifier), or `all` |
+| Audit trail | `add` / `revoke` / `expire` / `hit` all appended to `exemptions.jsonl` |
+| Exact matching | boundary-matched against whole candidates, so allowlisting a short word never leaks a real key that contains it |
+| Loopback only | the control API rejects any non-loopback request with 403 |
+
+### Agent entry point
+
+```bash
+/root/privacy-gateway/scripts/privacy-exempt.sh allow  --term "<literal>" --reason "<why it is safe>" [--scope all|layer0|layer1] [--ttl 3600]
+/root/privacy-gateway/scripts/privacy-exempt.sh revoke --term "<literal>" --reason "<why filtering can resume>"
+/root/privacy-gateway/scripts/privacy-exempt.sh list
+/root/privacy-gateway/scripts/privacy-exempt.sh audit
+```
+
+An agent that allowlists a term must also tell the user what it exempted and why; the plugin surfaces the same decision in the banner.
 
 ---
 
@@ -43,13 +72,27 @@ Designed to accompany [amwangfan/privacy-gateway](https://github.com/amwangfan/p
 dsh plugin --profile web add dsh-privacy-guard
 ```
 
-Or install from local source:
+Or install from local source (recommended while developing: rebuild and restart DSH to pick changes up):
 
 ```bash
-dsh plugin --profile web add link:/path/to/dsh-privacy-guard
+cd /path/to/dsh-privacy-guard
+npm run build                     # esbuild -> lib/index.js + lib/client.js
+dsh plugin --profile web add link:$PWD
+systemctl restart deepseek-harness.service
 ```
 
-Open your DSH Web GUI -> **Settings** -> **Privacy Guard** to view the live dashboard.
+Open your DSH Web GUI -> **Settings** -> **Privacy Guard** to view the live dashboard,
+the exemption list, and the in-page exemption banner.
+
+Self-check:
+
+```bash
+./scripts/verify.sh
+```
+
+> DSH authenticates every `/api/*` route, so an unauthenticated probe only sees 401.
+> Confirm the plugin really loaded via the Settings panel and
+> `journalctl -u deepseek-harness.service | grep -i privacy`.
 
 ---
 
