@@ -23,10 +23,28 @@ console.log(`Using esbuild at: ${esbuildBin}`)
 // The package name doubles as the client module id DSH's graph resolves.
 const PACKAGE_ID = 'dsh-privacy-guard'
 
-// 1. Host half (Node.js ESM)
+// 1. Host half (Node.js ESM).
+//
+// `@deepseek-ai/*` stays external because DSH provides those at runtime. Small
+// ordinary libraries (js-yaml) are bundled instead of declared as dependencies:
+// the plugin is consumed as a link, so a bundled dependency is the only way it
+// is guaranteed to resolve without the profile installing anything extra.
+// NODE_PATH lets esbuild find the profile's copy for resolution.
 execSync(
-  `"${esbuildBin}" src/index.ts --outfile=lib/index.js --bundle --format=esm --platform=node --target=node20 --packages=external`,
-  { stdio: 'inherit' }
+  `"${esbuildBin}" src/index.ts --outfile=lib/index.js --bundle --format=esm --platform=node --target=node20 --external:@deepseek-ai/*`,
+  {
+    stdio: 'inherit',
+    env: {
+      ...process.env,
+      NODE_PATH: [
+        process.env.NODE_PATH,
+        '/root/.dsh/profiles/web/node_modules',
+        `${process.env.HOME || '/root'}/.dsh/profiles/node_modules`,
+      ]
+        .filter(Boolean)
+        .join(':'),
+    },
+  },
 )
 console.log('✓ Built lib/index.js')
 

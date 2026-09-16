@@ -1,7 +1,7 @@
 {
   "name": "dsh-privacy-guard",
-  "description": "DeepSeek Harness 隐私脱密守护插件：监控本地 Privacy Gateway (:8317) 与 Qwen2.5-0.5B 本地小模型脱密状态，提供可视化安全看板与在线泄密探测沙箱",
-  "descriptionEn": "Privacy Guard plugin for DeepSeek Harness: monitors the local Privacy Gateway (:8317) and Qwen2.5-0.5B residual classifier, featuring a live security audit dashboard and interactive leak test sandbox.",
+  "description": "DeepSeek Harness 隐私保护插件：监控本地 Privacy Gateway (:8317) 与 Qwen2.5-0.5B 小模型，管理凭据脱敏、豁免白名单与加密密钥，并提供带凭据保护的模型入口与部署按钮",
+  "descriptionEn": "Privacy Protection plugin for DeepSeek Harness: monitors the local Privacy Gateway (:8317) and Qwen2.5-0.5B model, manages credential redaction, the exemption whitelist and the encryption key, and adds a credential-protected model entry plus deployment controls.",
   "version": "0.1.0",
   "type": "module",
   "main": "lib/index.js",
@@ -33,14 +33,16 @@
   },
   "homepage": "https://github.com/amwangfan/dsh-privacy-guard",
   "keywords": [
-    "deepseek-harness",
-    "dsh-plugin",
-    "privacy",
-    "security",
-    "dlp",
     "cordis",
+    "deepseek-harness",
+    "dlp",
+    "dsh-plugin",
+    "gateway",
+    "privacy",
+    "protection",
     "qwen",
-    "gateway"
+    "redaction",
+    "security"
   ],
   "dsh": {
     "engines": {
@@ -70,5 +72,8 @@
   "scripts": {
     "build": "node build.js",
     "verify": "bash scripts/verify.sh"
+  },
+  "dependencies": {
+    "js-yaml": "^4.1.0"
   }
 }

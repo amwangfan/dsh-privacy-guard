@@ -1,8 +1,13 @@
-# DSH Privacy Guard
+# DSH Privacy Protection
 
 **English** | [简体中文](README.md)
 
-DeepSeek Harness (DSH) Web plugin for real-time local privacy gateway monitoring, audit metrics dashboard, and interactive credential leak test sandbox.
+DeepSeek Harness (DSH) Web plugin for local privacy protection: gateway monitoring, an audit
+dashboard, the exemption whitelist, encryption-key management, a credential-protected model entry,
+and deployment controls.
+
+> Named "Privacy Protection" rather than "redaction" because semantic sensitive-information
+> filtering is planned.
 
 Designed to accompany [amwangfan/privacy-gateway](https://github.com/amwangfan/privacy-gateway).
 
@@ -26,9 +31,31 @@ Designed to accompany [amwangfan/privacy-gateway](https://github.com/amwangfan/p
 5. **🔑 Encryption key configuration (optional)**:
    - Choose between the generated key file and a custom passphrase; the passphrase is never echoed back.
    - Changing the key re-encrypts and verifies existing credentials first, rolls back on failure, and keeps older placeholders restorable.
-6. **🔓 Exemption list and in-page banner**:
-   - The panel lists every term whose filtering is currently paused, with scope, reason, actor, expiry, and hit count.
-   - When an agent adds or revokes an exemption, an **in-page banner** (not a browser `alert`) reports which term, why, who did it, and when it expires.
+6. **🔓 Exemption whitelist and in-page banner**:
+   - The panel lists every term whose filtering is currently paused (scope, reason, actor, expiry, hits) and lets you **edit it line by line**: one term per line, removing a line revokes it.
+   - When an exemption is added or revoked, an **in-page banner** (not a browser `alert`) reports which term, why, and who did it.
+7. **🛡️ Credential-protected model entry**: copy an existing provider into a gateway-routed route in the model list while the original returns to the direct route.
+8. **🚀 Deployment controls**: download and deploy the gateway or the model, start/stop/restart them, read their logs, and edit their addresses and ports — all from the panel.
+
+---
+
+## 🛡️ Credential-protected models (a second route in the model list)
+
+The "Credential-protected models" card **copies an existing provider**, points its `baseURL` at the
+local gateway and writes it into the model list in `~/.dsh/settings.yaml`, while moving the
+**original provider back to the direct route**. The model list then carries both:
+
+| Entry | Route | Use |
+|---|---|---|
+| `自建聚合` | direct backend `:8316` | no redaction wanted (fastest, no added latency) |
+| `自建聚合(凭据保护)` | through the gateway `:8317` | redaction wanted |
+
+**Selecting the entry marked "credential-protected" routes that model through the gateway.** No
+restart is needed: `dsh-settings-file` watches the file with chokidar and publishes external edits
+(a page refresh shows them).
+
+The write loads the whole YAML document, changes only the provider block and writes it back, after
+backing the file up as `settings.yaml.bak-plugin-*`; every other setting is verified unchanged.
 
 ---
 

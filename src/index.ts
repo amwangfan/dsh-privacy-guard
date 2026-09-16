@@ -2,6 +2,12 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { Context } from '@deepseek-ai/cordis'
 import type { WebRoute } from '@deepseek-ai/dsh-host-webserver'
 import { managerAvailable, runManager } from './manager.js'
+import {
+  applyProtectedProvider,
+  detectGatewayProviders,
+  listProviders,
+  removeProtectedProvider,
+} from './protect.js'
 import type {
   DryRunRequest,
   DryRunResponse,
@@ -347,6 +353,61 @@ export function apply(ctx: Context, config?: Config): void {
       },
     },
     // ---- deployment control plane (drives scripts/privacy-manager.py) ----
+    // ---- protected model-list entry (a gateway-routed twin provider) ----
+    {
+      kind: 'exact',
+      path: '/api/dsh-privacy-guard/protect',
+      handler: async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
+        try {
+          if (req.method === 'GET') {
+            writeJson(res, 200, {
+              ok: true,
+              // `gateway_providers` is what is still pointed at the gateway; the
+              // panel picks a source from `providers` when that list is empty
+              // because the original was already moved to the direct route.
+              gateway_providers: detectGatewayProviders(),
+              providers: listProviders(),
+            })
+            return
+          }
+          const raw = await readBody(req)
+          const body = JSON.parse(raw || '{}') as {
+            action?: string
+            source?: string
+            suffix?: string
+            display_suffix?: string
+            gateway_base_url?: string
+            provider?: string
+          }
+          const action = String(body.action || 'apply')
+          if (action === 'remove') {
+            writeJson(res, 200, removeProtectedProvider(String(body.provider || '')))
+            return
+          }
+          // The direct endpoint is the gateway's configured BACKEND_URL: that is
+          // where the gateway forwards to, so it is the unprotected route.
+          let directBase = String((body as any).direct_base_url || '')
+          if (!directBase) {
+            const st = await runManager(['config'])
+            const backend = String((st as any)?.config?.direct_base_url || '')
+            if (backend) directBase = backend
+          }
+          writeJson(
+            res,
+            200,
+            applyProtectedProvider(
+              String(body.source || ''),
+              String(body.suffix || '-protected'),
+              String(body.display_suffix || '(凭据保护)'),
+              String(body.gateway_base_url || ''),
+              directBase,
+            ),
+          )
+        } catch (err: any) {
+          writeJson(res, 400, { ok: false, error: err?.message || 'invalid request body' })
+        }
+      },
+    },
     {
       kind: 'exact',
       path: '/api/dsh-privacy-guard/deploy',

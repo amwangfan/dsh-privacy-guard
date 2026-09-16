@@ -20,8 +20,8 @@ const POLL_MS = 4000
  */
 const DICT = {
   zh: {
-    'section.label': '隐私脱密',
-    'panel.title': '隐私脱密',
+    'section.label': '隐私保护',
+    'panel.title': '隐私保护',
     'gateway.card': '脱密网关 :8317',
     'gateway.active': '正在保护',
     'gateway.offline': '未连接',
@@ -88,6 +88,18 @@ const DICT = {
     'exempt.cancel': '取消',
     'exempt.applied': '白名单已更新（新增 {added}，撤销 {removed}）',
     'exempt.addedByPanel': '在插件面板中人工添加',
+    'protect.title': '凭据保护模型',
+    'protect.hint': '复制一份现有 provider，指向网关，写进模型列表；原 provider 回到直连，两条链路并存。',
+    'protect.apply': '写入模型列表',
+    'protect.applying': '写入中…',
+    'protect.created': '已创建 {name}（{models} 个模型）',
+    'protect.updated': '已更新 {name}',
+    'protect.noop': '已是最新，无需改动',
+    'protect.flipped': '原 provider 已改回直连 {url}',
+    'protect.source': '源 provider',
+    'protect.gatewayUrl': '网关地址（保护链路）',
+    'protect.directUrl': '直连地址（原链路）',
+    'protect.selected': '在模型列表里选带「凭据保护」的条目即走网关',
     'deploy.title': '网关与模型部署',
     'deploy.installing': '安装中…',
     'deploy.install': '下载并部署',
@@ -115,8 +127,8 @@ const DICT = {
     'error.noGateway': '无法连接隐私网关',
   },
   en: {
-    'section.label': 'Privacy Guard',
-    'panel.title': 'Privacy Guard',
+    'section.label': 'Privacy Protection',
+    'panel.title': 'Privacy Protection',
     'gateway.card': 'Gateway :8317',
     'gateway.active': 'Protecting',
     'gateway.offline': 'Offline',
@@ -183,6 +195,18 @@ const DICT = {
     'exempt.cancel': 'Cancel',
     'exempt.applied': 'Whitelist updated (+{added}, -{removed})',
     'exempt.addedByPanel': 'added by hand in the panel',
+    'protect.title': 'Credential-protected models',
+    'protect.hint': 'Copies an existing provider, points it at the gateway and writes it into the model list; the original goes back to the direct route so both remain available.',
+    'protect.apply': 'Add to model list',
+    'protect.applying': 'Writing…',
+    'protect.created': 'Created {name} ({models} models)',
+    'protect.updated': 'Updated {name}',
+    'protect.noop': 'Already current',
+    'protect.flipped': 'Original provider moved back to the direct route {url}',
+    'protect.source': 'Source provider',
+    'protect.gatewayUrl': 'Gateway URL (protected route)',
+    'protect.directUrl': 'Direct URL (original route)',
+    'protect.selected': 'Pick the entry marked "credential-protected" in the model list to go through the gateway',
     'deploy.title': 'Gateway & model deployment',
     'deploy.installing': 'Installing…',
     'deploy.install': 'Download & deploy',
@@ -741,6 +765,173 @@ function DeployCard(props: { t: T }): React.ReactElement {
   )
 }
 
+/** Writes a gateway-routed twin provider into the DSH model list. */
+function ProtectCard(props: { t: T }): React.ReactElement {
+  const { t } = props
+  const [info, setInfo] = useState<any>(null)
+  const [busy, setBusy] = useState(false)
+  const [note, setNote] = useState<{ ok: boolean; text: string } | null>(null)
+  const [form, setForm] = useState({ source: '', gateway: '', direct: '' })
+  const [touched, setTouched] = useState(false)
+
+  const load = useCallback(async () => {
+    try {
+      const [p, d] = await Promise.all([
+        fetch(`/api/${PKG}/protect`).then((r) => r.json()),
+        fetch(`/api/${PKG}/deploy`).then((r) => r.json()),
+      ])
+      setInfo(p)
+      setForm((prev) => {
+        if (touched) return prev
+        const found: any[] = p.gateway_providers || []
+        const rows: any[] = p.providers || []
+        const c = d.config || {}
+        // Prefer a provider still on the gateway; otherwise reuse the source
+        // recorded by an existing twin, so a second visit pre-fills correctly
+        // even though the original now sits on the direct route.
+        const twin = rows.find((r) => r.managed && r.source)
+        const sourceName =
+          (found.length === 1 && found[0].name) || (twin && twin.source) || prev.source || ''
+        const sourceRow = rows.find((r) => r.name === sourceName)
+        const gatewayUrl =
+          (found.length === 1 && found[0].baseURL) ||
+          (twin && twin.baseURL) ||
+          prev.gateway ||
+          ''
+        return {
+          source: sourceName,
+          gateway: gatewayUrl,
+          direct: prev.direct || String(c.direct_base_url || sourceRow?.baseURL || ''),
+        }
+      })
+    } catch {
+      setInfo(null)
+    }
+  }, [touched])
+
+  useEffect(() => {
+    load()
+  }, [load])
+
+  const apply = async () => {
+    setBusy(true)
+    setNote(null)
+    try {
+      const r = await fetch(`/api/${PKG}/protect`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          action: 'apply',
+          source: form.source,
+          gateway_base_url: form.gateway,
+          direct_base_url: form.direct,
+        }),
+      })
+      const d = await r.json()
+      if (!d.ok) {
+        setNote({ ok: false, text: d.error || t('sandbox.fail') })
+        return
+      }
+      const text =
+        d.action === 'noop'
+          ? t('protect.noop')
+          : d.action === 'created'
+            ? t('protect.created', { name: d.display_name || d.provider, models: d.models ?? 0 })
+            : t('protect.updated', { name: d.display_name || d.provider })
+      const flipped = d.source_flipped_direct
+        ? ` · ${t('protect.flipped', { url: d.source_base_url || '' })}`
+        : ''
+      setNote({ ok: true, text: text + flipped })
+      await load()
+    } catch (e: any) {
+      setNote({ ok: false, text: e?.message || t('sandbox.fail') })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const input = (key: 'source' | 'gateway' | 'direct', label: string, ph = '') =>
+    React.createElement(
+      'div',
+      { style: { display: 'flex', flexDirection: 'column', gap: '3px', flex: '1 1 240px' } },
+      React.createElement('label', { style: { fontSize: '11px', opacity: 0.7 } }, label),
+      React.createElement('input', {
+        value: form[key],
+        placeholder: ph,
+        spellCheck: false,
+        onChange: (e: any) => {
+          setTouched(true)
+          setForm({ ...form, [key]: e.target.value })
+        },
+        style: {
+          background: 'rgba(0,0,0,0.25)',
+          border: '1px solid rgba(255,255,255,0.12)',
+          borderRadius: '6px',
+          color: 'inherit',
+          padding: '5px 8px',
+          fontSize: '11px',
+          fontFamily: 'monospace',
+        },
+      }),
+    )
+
+  const found: any[] = info?.gateway_providers || []
+
+  return React.createElement(
+    'div',
+    { style: { ...card, marginTop: '16px' } },
+    React.createElement(
+      'div',
+      { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' } },
+      React.createElement('span', { style: { fontSize: '13px', fontWeight: 600 } }, t('protect.title')),
+      React.createElement(
+        'span',
+        { style: { fontSize: '11px', opacity: 0.6 } },
+        found.length ? found.map((f) => f.name).join(', ') : t('deploy.missing'),
+      ),
+    ),
+    React.createElement('div', { style: { ...dim, marginBottom: '8px' } }, t('protect.hint')),
+    React.createElement(
+      'div',
+      { style: { display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '8px' } },
+      input('source', t('protect.source'), 'ccswitch-aggregator'),
+      input('gateway', t('protect.gatewayUrl'), 'http://100.114.93.90:8317/v1'),
+      input('direct', t('protect.directUrl'), 'http://100.114.93.90:8316/v1'),
+    ),
+    React.createElement(
+      'div',
+      { style: { display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' } },
+      React.createElement(
+        'button',
+        {
+          onClick: apply,
+          disabled: busy,
+          style: {
+            padding: '5px 12px',
+            borderRadius: '6px',
+            fontSize: '12px',
+            fontWeight: 600,
+            background: 'var(--dsh-primary, #3b82f6)',
+            color: '#fff',
+            border: 'none',
+            cursor: busy ? 'not-allowed' : 'pointer',
+            opacity: busy ? 0.6 : 1,
+          },
+        },
+        busy ? t('protect.applying') : t('protect.apply'),
+      ),
+      React.createElement('span', { style: { fontSize: '11px', opacity: 0.55 } }, t('protect.selected')),
+    ),
+    note
+      ? React.createElement(
+          'div',
+          { style: { fontSize: '12px', marginTop: '8px', color: note.ok ? '#4ade80' : '#f87171', wordBreak: 'break-word' } },
+          note.text,
+        )
+      : null,
+  )
+}
+
 function ExemptionCard(props: { t: T }): React.ReactElement {
   const { t } = props
   const { list, online, refresh } = useExemptions()
@@ -1269,6 +1460,8 @@ function Panel(props: { t: T }): React.ReactElement {
     React.createElement(KeyConfigCard, { t }),
 
     React.createElement(DeployCard, { t }),
+
+    React.createElement(ProtectCard, { t }),
 
     React.createElement(
       'div',
