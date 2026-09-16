@@ -8,6 +8,16 @@ export interface Layer1Stats {
   cache_size: number
 }
 
+export interface PersistStats {
+  enabled: boolean
+  db_path?: string
+  vault_rows?: number
+  layer1_rows?: number
+  mem_mappings?: number
+  key_source?: string
+  custom_secrets_count?: number
+}
+
 export interface GatewayHealth {
   status: string
   uptime_seconds: number
@@ -17,6 +27,7 @@ export interface GatewayHealth {
   backend_url: string
   restore_outbound: boolean
   placeholder_prefix: string
+  persist?: PersistStats
   layer1: Layer1Stats
 }
 

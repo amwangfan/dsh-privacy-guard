@@ -10,7 +10,7 @@ export function PrivacyGuardView(): React.ReactElement {
 
   // Sandbox state
   const [inputVal, setInputVal] = useState<string>(
-    '# 测试敏感凭据泄漏：\napi_key = "sk-proj-abcdefghijklmnopqrstuvwxyz123456"\ndb_url = "postgres://root:SuperSecret123@db.internal:5432/main"\npassword = "my_private_db_password_2026"\nsafe_word = "hello world office-N100"',
+    '# 测试敏感凭据脱密（支持正则、千问0.5B模型判定、以及自定义密码密钥）：\napi_key = "<SECRET_API_KEY_15>"\ndb_url = "postgres://root:<SECRET_DB_PASS_9>@db.internal:5432/main"\npassword = "<SECRET_LLM_SECRET_111>"\ncustom_token = "<SECRET_LLM_SECRET_263>"\nsafe_word = "hello world office-N100"',
   )
   const [dryRunRes, setDryRunRes] = useState<DryRunResponse | null>(null)
   const [dryRunLoading, setDryRunLoading] = useState<boolean>(false)
@@ -56,13 +56,14 @@ export function PrivacyGuardView(): React.ReactElement {
   const gwOnline = status?.gateway.online ?? false
   const cfOnline = status?.classifier.online ?? false
   const stats = status?.gateway.stats
+  const persist = stats?.persist
 
   return React.createElement(
     'div',
     {
       style: {
         padding: '24px',
-        maxWidth: '960px',
+        maxWidth: '1000px',
         margin: '0 auto',
         fontFamily: 'system-ui, -apple-system, sans-serif',
         color: 'var(--dsh-text, #e2e8f0)',
@@ -76,15 +77,15 @@ export function PrivacyGuardView(): React.ReactElement {
       React.createElement(
         'p',
         { style: { margin: 0, fontSize: '13px', opacity: 0.75, lineHeight: '1.5' } },
-        '监控本地 Privacy Gateway (:8317) 与 Qwen2.5-0.5B 本地小模型的脱密运转状态。所有敏感 API Token、私钥、数据库密码在离开局域网前被强制脱敏，流式回显无感还原。',
+        '实时监控本地 Privacy Gateway (:8317)、Qwen2.5-0.5B 本地小模型 (:8319) 及 AES-GCM 本地加密持久化存储状态。敏感凭据在离开内网前强制脱敏，流式回显无感还原。',
       ),
     ),
 
-    // Status Badges Row
+    // Status Badges Row (3 cards: Gateway, Classifier, Persistent Storage)
     React.createElement(
       'div',
       { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px', marginBottom: '24px' } },
-      // Gateway Card
+      // 1. Gateway Card
       React.createElement(
         'div',
         {
@@ -122,7 +123,7 @@ export function PrivacyGuardView(): React.ReactElement {
           React.createElement('div', null, `占位符规范: ${stats?.placeholder_prefix || '<SECRET_'}*`),
         ),
       ),
-      // Classifier Card
+      // 2. Classifier Card
       React.createElement(
         'div',
         {
@@ -136,7 +137,7 @@ export function PrivacyGuardView(): React.ReactElement {
         React.createElement(
           'div',
           { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' } },
-          React.createElement('span', { style: { fontSize: '14px', fontWeight: 600 } }, '千问 0.5B 残差分类器 (:8319)'),
+          React.createElement('span', { style: { fontSize: '14px', fontWeight: 600 } }, '千问 0.5B 残差模型 (:8319)'),
           React.createElement(
             'span',
             {
@@ -149,15 +150,53 @@ export function PrivacyGuardView(): React.ReactElement {
                 fontWeight: 600,
               },
             },
-            cfOnline ? '● 在线 (Qwen2.5-0.5B F16)' : '○ 未加载 (Offline)',
+            cfOnline ? '● 在线 (Qwen2.5-0.5B)' : '○ 未加载 (Offline)',
           ),
         ),
         React.createElement(
           'div',
           { style: { fontSize: '12px', opacity: 0.8, lineHeight: '1.8' } },
           React.createElement('div', null, `推理端点: ${status?.classifier.url || 'http://127.0.0.1:8319'}`),
-          React.createElement('div', null, `Layer 1 缓存条数: ${stats?.layer1.cache_size ?? '--'}`),
-          React.createElement('div', null, `残差识别命中数: ${stats?.layer1.hits ?? '--'}`),
+          React.createElement('div', null, `并发模式: 2 槽位并行 (Parallel)`),
+          React.createElement('div', null, `Layer 1 缓存: ${stats?.layer1.cache_size ?? '--'} 条`),
+        ),
+      ),
+      // 3. Persistent Vault Card
+      React.createElement(
+        'div',
+        {
+          style: {
+            background: 'var(--dsh-card-bg, rgba(255,255,255,0.03))',
+            borderRadius: '10px',
+            border: `1px solid ${persist?.enabled ? 'rgba(168,85,247,0.3)' : 'rgba(156,163,175,0.3)'}`,
+            padding: '16px',
+          },
+        },
+        React.createElement(
+          'div',
+          { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' } },
+          React.createElement('span', { style: { fontSize: '14px', fontWeight: 600 } }, '本地加密持久化 (SQLite)'),
+          React.createElement(
+            'span',
+            {
+              style: {
+                fontSize: '11px',
+                padding: '2px 8px',
+                borderRadius: '12px',
+                background: persist?.enabled ? 'rgba(168,85,247,0.2)' : 'rgba(156,163,175,0.2)',
+                color: persist?.enabled ? '#c084fc' : '#9ca3af',
+                fontWeight: 600,
+              },
+            },
+            persist?.enabled ? '● 已启用 (AES-GCM)' : '○ 纯内存 (Memory)',
+          ),
+        ),
+        React.createElement(
+          'div',
+          { style: { fontSize: '12px', opacity: 0.8, lineHeight: '1.8' } },
+          React.createElement('div', null, `落盘凭据: ${persist?.vault_rows ?? '--'} 条`),
+          React.createElement('div', null, `模型缓存: ${persist?.layer1_rows ?? '--'} 条`),
+          React.createElement('div', null, `密钥来源: ${persist?.key_source === 'password' ? '🔑 用户自定义密码 (PBKDF2)' : '📄 系统主密钥文件'}`),
         ),
       ),
     ),
@@ -169,8 +208,8 @@ export function PrivacyGuardView(): React.ReactElement {
       [
         { label: '累计拦截脱敏', value: stats?.total_redacted_secrets ?? 0, color: '#38bdf8' },
         { label: '出网流式还原', value: stats?.total_restored_secrets ?? 0, color: '#34d399' },
-        { label: '内存 Vault 活跃凭据', value: stats?.active_vault_mappings ?? 0, color: '#fbbf24' },
-        { label: '0.5B 模型分类次数', value: stats?.layer1.classified ?? 0, color: '#a78bfa' },
+        { label: 'Vault 凭据总库', value: persist?.vault_rows ?? (stats?.active_vault_mappings ?? 0), color: '#fbbf24' },
+        { label: '0.5B 模型分类命中', value: stats?.layer1.hits ?? 0, color: '#a78bfa' },
       ].map((item, idx) =>
         React.createElement(
           'div',
@@ -187,6 +226,29 @@ export function PrivacyGuardView(): React.ReactElement {
           React.createElement('div', { style: { fontSize: '11px', opacity: 0.7, marginBottom: '6px' } }, item.label),
           React.createElement('div', { style: { fontSize: '22px', fontWeight: 700, color: item.color } }, item.value),
         ),
+      ),
+    ),
+
+    // User Configuration & Custom Secrets Guide
+    React.createElement(
+      'div',
+      {
+        style: {
+          background: 'var(--dsh-card-bg, rgba(255,255,255,0.02))',
+          borderRadius: '10px',
+          border: '1px solid var(--dsh-border, rgba(255,255,255,0.08))',
+          padding: '16px',
+          marginBottom: '24px',
+          fontSize: '12px',
+          lineHeight: '1.7',
+        },
+      },
+      React.createElement('div', { style: { fontSize: '13px', fontWeight: 600, marginBottom: '8px', color: '#60a5fa' } }, '⚙️ 用户自定义密码密钥与规则配置指引'),
+      React.createElement(
+        'div',
+        { style: { opacity: 0.85 } },
+        React.createElement('div', null, '• ', React.createElement('b', null, '自定义存储主密码 (Vault Password): '), '可通过环境变量 ', React.createElement('code', null, 'VAULT_PASSWORD="你的强口令"'), ' 自定义持久化数据库的 AES-256 加密密钥（采用 PBKDF2-HMAC-SHA256 派生），不再受限于单机随机文件。'),
+        React.createElement('div', null, '• ', React.createElement('b', null, '自定义敏感凭据词表 (Custom Secrets): '), '可通过环境变量 ', React.createElement('code', null, 'CUSTOM_SECRETS="token1,password2"'), ' 或将敏感词写入 ', React.createElement('code', null, '/etc/privacy-gateway/custom_secrets.txt'), '。列表内的敏感词将作为 Layer 0 最高优先级强制脱密，零推理延迟。'),
       ),
     ),
 
@@ -229,7 +291,7 @@ export function PrivacyGuardView(): React.ReactElement {
       React.createElement(
         'div',
         { style: { fontSize: '12px', opacity: 0.7, marginBottom: '10px' } },
-        '在下方贴入任意包含口令、Token、私钥或配置文本，测试网关两层规则（Layer 0 正则 + Layer 1 0.5B 判定）的脱敏替换效果（纯本地仿真，不出网）：',
+        '在下方贴入任意包含口令、Token、私钥或配置文本，测试网关两层规则（Layer 0 正则 + Layer 1 0.5B 判定 + 用户自定义密钥）的脱敏替换效果（纯本地仿真，不出网）：',
       ),
       React.createElement('textarea', {
         value: inputVal,
@@ -304,7 +366,7 @@ export function PrivacyGuardView(): React.ReactElement {
         'span',
         null,
         '模型权重: ',
-        React.createElement('a', { href: 'https://huggingface.co/amwangfan/privacy-gateway-v4-qwen2.5-0.5b', target: '_blank', rel: 'noreferrer', style: { color: '#60a5fa', textDecoration: 'none' } }, 'Qwen2.5-0.5B v4 (Hugging Face)'),
+        React.createElement('a', { href: 'https://huggingface.co/amwangfan/<SECRET_LLM_SECRET_89>.5-0.5b', target: '_blank', rel: 'noreferrer', style: { color: '#60a5fa', textDecoration: 'none' } }, 'Qwen2.5-0.5B v4 (Hugging Face)'),
       ),
     ),
   )
