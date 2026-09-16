@@ -10,7 +10,7 @@ export function PrivacyGuardView(): React.ReactElement {
 
   // Sandbox state
   const [inputVal, setInputVal] = useState<string>(
-    '# 测试敏感凭据脱密（支持正则、千问0.5B模型判定、以及自定义密码密钥）：\napi_key = "<SECRET_API_KEY_15>"\ndb_url = "postgres://root:<SECRET_DB_PASS_9>@db.internal:5432/main"\npassword = "<SECRET_LLM_SECRET_111>"\ncustom_token = "<SECRET_LLM_SECRET_263>"\nsafe_word = "hello world office-N100"',
+    '# 测试敏感凭据脱密（支持正则、千问0.5B模型判定、以及自定义密码密钥）：\napi_key = "sk-proj-abcdefghijklmnopqrstuvwxyz123456"\ndb_url = "postgres://root:SuperSecret123@db.internal:5432/main"\npassword = "my_private_db_password_2026"\ncustom_token = "Zx7Qm2Vt9Lp4Kd8Wn3Rf"\nsafe_word = "hello world office-N100"',
   )
   const [dryRunRes, setDryRunRes] = useState<DryRunResponse | null>(null)
   const [dryRunLoading, setDryRunLoading] = useState<boolean>(false)
@@ -366,7 +366,7 @@ export function PrivacyGuardView(): React.ReactElement {
         'span',
         null,
         '模型权重: ',
-        React.createElement('a', { href: 'https://huggingface.co/amwangfan/<SECRET_LLM_SECRET_89>.5-0.5b', target: '_blank', rel: 'noreferrer', style: { color: '#60a5fa', textDecoration: 'none' } }, 'Qwen2.5-0.5B v4 (Hugging Face)'),
+        React.createElement('a', { href: 'https://huggingface.co/amwangfan/privacy-gateway-v4-qwen2.5-0.5b', target: '_blank', rel: 'noreferrer', style: { color: '#60a5fa', textDecoration: 'none' } }, 'Qwen2.5-0.5B v4 (Hugging Face)'),
       ),
     ),
   )

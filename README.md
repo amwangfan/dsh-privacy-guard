@@ -32,7 +32,7 @@ DeepSeek Harness (DSH) Web 隐私脱密守护插件 —— 为 DSH Web 控制台
 |---|---|---|
 | **`dsh-privacy-guard`** (本仓库) | DSH Web 客户端管理与监控插件 (Node.js / React / Cordis) | [GitHub: amwangfan/dsh-privacy-guard](https://github.com/amwangfan/dsh-privacy-guard) |
 | **`privacy-gateway`** | 本地高性能出网脱敏网关核心 (Python / FastAPI / DFA) | [GitHub: amwangfan/privacy-gateway](https://github.com/amwangfan/privacy-gateway) |
-| **`qwen2.5-0.5b-privacy`** | 专为本地凭据判别微调的轻量级小模型 (LoRA + GGUF) | [HuggingFace: amwangfan/<SECRET_LLM_SECRET_89>.5-0.5b](https://huggingface.co/amwangfan/<SECRET_LLM_SECRET_89>.5-0.5b) |
+| **`qwen2.5-0.5b-privacy`** | 专为本地凭据判别微调的轻量级小模型 (LoRA + GGUF) | [HuggingFace: amwangfan/privacy-gateway-v4-qwen2.5-0.5b](https://huggingface.co/amwangfan/privacy-gateway-v4-qwen2.5-0.5b) |
 
 ---
 

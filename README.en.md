@@ -32,7 +32,7 @@ Designed to accompany [amwangfan/privacy-gateway](https://github.com/amwangfan/p
 |---|---|---|
 | **`dsh-privacy-guard`** (This Repo) | DSH Web plugin & dashboard (Node.js / React / Cordis) | [GitHub: amwangfan/dsh-privacy-guard](https://github.com/amwangfan/dsh-privacy-guard) |
 | **`privacy-gateway`** | Local high-performance reverse proxy (Python / FastAPI / DFA) | [GitHub: amwangfan/privacy-gateway](https://github.com/amwangfan/privacy-gateway) |
-| **`qwen2.5-0.5b-privacy`** | Lightweight edge model fine-tuned for credential classification | [HuggingFace: amwangfan/<SECRET_LLM_SECRET_89>.5-0.5b](https://huggingface.co/amwangfan/<SECRET_LLM_SECRET_89>.5-0.5b) |
+| **`qwen2.5-0.5b-privacy`** | Lightweight edge model fine-tuned for credential classification | [HuggingFace: amwangfan/privacy-gateway-v4-qwen2.5-0.5b](https://huggingface.co/amwangfan/privacy-gateway-v4-qwen2.5-0.5b) |
 
 ---
 
