@@ -383,20 +383,38 @@ export function apply(ctx: Context, config?: Config): void {
           }
           const action = String(body.action || 'apply')
           if (action === 'builtin_status') {
-            // Everything the panel needs to mirror the built-in provider.
-            const builtin = readNamespace('llm-deepseek')
+            // Everything the panel needs to mirror the built-in provider, taken
+            // from the runtime catalog (which includes schema defaults).
+            const provider = String((body as any).provider || 'deepseek-official')
+            const catalog = await readBuiltinModels(provider)
+            if (catalog) {
+              writeJson(res, 200, {
+                ok: true,
+                builtin: {
+                  provider,
+                  namespace: 'llm-pi-ai',
+                  models: catalog.models,
+                  default_context_window: catalog.defaultContextWindow,
+                  base_url: '',
+                  api_key_env: 'DEEPSEEK_API_KEY',
+                },
+              })
+              return
+            }
+            const fallback = resolvedNamespace('llm-deepseek')
             writeJson(res, 200, {
               ok: true,
-              builtin: builtin.data
+              builtin: fallback
                 ? {
+                    provider,
                     namespace: 'llm-deepseek',
-                    models: builtin.data.models || [],
-                    default_context_window: builtin.data.defaultContextWindow,
-                    base_url: builtin.data.baseURL || '',
+                    models: fallback.models || [],
+                    default_context_window: fallback.defaultContextWindow,
+                    base_url: fallback.baseURL || '',
                     api_key_env: 'DEEPSEEK_API_KEY',
                   }
                 : null,
-              error: builtin.error,
+              error: fallback ? undefined : 'llm-deepseek is not registered',
             })
             return
           }
@@ -408,8 +426,36 @@ export function apply(ctx: Context, config?: Config): void {
             const displayName = String((body as any).display_name || 'DeepSeek 官方(凭据保护)')
             const baseUrl = String((body as any).base_url || '')
             const apiKeyEnv = String((body as any).api_key_env || 'DEEPSEEK_API_KEY')
-            const models = Array.isArray((body as any).models) ? (body as any).models : []
+            // Models normally come from the panel (which got them from
+            // builtin_status); derive them here too so the entry is reproducible
+            // by code alone, without the caller having to carry them.
+            let models = Array.isArray((body as any).models) ? (body as any).models : []
+            if (!models.length) {
+              const catalog = await readBuiltinModels(
+                String((body as any).provider || 'deepseek-official'),
+              )
+              if (catalog) models = catalog.models
+            }
             const ctxWindow = Number((body as any).default_context_window || 0) || undefined
+            // Levels offered on the gateway route, and the wire value each one
+            // sends. The level ids come from the runtime catalog so they track
+            // the adapter; the wire spelling is DeepSeek's, where "off" is spelled
+            // `none` — sending the literal `reasoning_effort: "off"` is rejected
+            // with HTTP 400 ("unknown variant `off`"), which is what broke this
+            // route as soon as the level was off. `none` verifiably disables
+            // reasoning.
+            const declaredEfforts: string[] = Array.from(
+              new Set(
+                (models as any[])
+                  .flatMap((m) => (Array.isArray(m?.effortIds) ? m.effortIds : []))
+                  .map((x) => String(x)),
+              ),
+            )
+            const wireFor = (level: string) => (level === 'off' ? 'none' : level)
+            const efforts = (body as any).efforts
+              ?? (declaredEfforts.length
+                ? Object.fromEntries(declaredEfforts.map((lv) => [lv, wireFor(lv)]))
+                : { off: 'none', low: 'low', high: 'high', max: 'max' })
             writeJson(res, 200, addGatewayProvider({
               name,
               displayName,
@@ -419,6 +465,24 @@ export function apply(ctx: Context, config?: Config): void {
               models,
               defaultContextWindow: ctxWindow,
               api: String((body as any).api || 'openai-completions'),
+              efforts,
+              // DeepSeek's own dialect, taken from pi-ai's DeepSeek catalog:
+              // it rejects the OpenAI `developer` role (HTTP 400 unknown variant),
+              // wants `max_tokens`, and needs reasoning content echoed back on
+              // assistant messages.
+              //
+              // `thinkingFormat: "deepseek"` is deliberately NOT set: that dialect
+              // emits `thinking:{type:"enabled"}` whenever an effort is present,
+              // and DeepSeek honours `thinking` over `reasoning_effort`, so
+              // selecting "off" (wire `none`) would still think. The default
+              // format sends a bare `reasoning_effort`, which is exactly what the
+              // built-in adapter does and what verifiably turns thinking off.
+              compat: (body as any).compat ?? {
+                supportsStore: false,
+                supportsDeveloperRole: false,
+                maxTokensField: 'max_tokens',
+                requiresReasoningContentOnAssistantMessages: true,
+              },
             }))
             return
           }
@@ -530,6 +594,69 @@ export function apply(ctx: Context, config?: Config): void {
   // method that does not exist here used to be swallowed by a truthiness guard,
   // so the plugin loaded "successfully" while registering zero routes and every
   // panel request 404'd — which the UI could only report as "offline".
+  // Resolved settings are the only correct source for a built-in provider's
+  // model list: the file stores just the user layer, so a namespace whose models
+  // still equal the adapter's schema defaults has no `models` key on disk.
+  // Reading the file instead produced an empty mirror.
+  const settings = ctx.get ? ctx.get('settings') : undefined
+  const resolvedNamespace = (ns: string): any | undefined => {
+    try {
+      if (settings && typeof settings.get === 'function') {
+        const value = settings.get(ns)
+        if (value !== undefined) return value
+      }
+    } catch {
+      /* fall through to the file */
+    }
+    const fromFile = readNamespace(ns)
+    return fromFile.ok ? fromFile.data : undefined
+  }
+
+  const llm = ctx.get ? ctx.get('llm') : undefined
+
+  /**
+   * The built-in provider's model list as the runtime actually knows it.
+   *
+   * The settings file only stores the user layer, so a namespace still equal to
+   * its schema defaults has no `models` key on disk — mirroring the file produced
+   * an empty provider. `llm.listModels` plus `resolveModelInfo` return the
+   * resolved catalog, including each model's reasoning efforts, which is exactly
+   * what a faithful mirror needs.
+   */
+  const readBuiltinModels = async (provider: string) => {
+    if (!llm || typeof llm.listModels !== 'function') return null
+    let list: any[]
+    try {
+      list = (await llm.listModels(provider)) as any[]
+    } catch {
+      return null
+    }
+    if (!Array.isArray(list) || !list.length) return null
+    const models = []
+    for (const m of list) {
+      let resolved: any = null
+      if (typeof llm.resolveModelInfo === 'function') {
+        try {
+          resolved = await llm.resolveModelInfo(provider, m.id)
+        } catch {
+          /* advisory metadata only */
+        }
+      }
+      const effortIds: string[] = ((resolved?.reasoning?.efforts as any[]) || []).map((e) =>
+        String(e?.id ?? e),
+      )
+      models.push({
+        id: String(m.id),
+        name: m.name,
+        contextWindow: resolved?.context?.contextWindow ?? m.contextWindow,
+        maxTokens: resolved?.defaultMaxTokens,
+        input: m.inputModalities,
+        effortIds,
+      })
+    }
+    return { provider, models, defaultContextWindow: models[0]?.contextWindow }
+  }
+
   const webServer = (ctx as any).webServer
   if (typeof webServer?.register !== 'function') {
     throw new Error(

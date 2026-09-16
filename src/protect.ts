@@ -273,8 +273,50 @@ export function applyProtectedProvider(
  *
  * Options: name, displayName, modelsNs, apiKeyEnv, models, defaultContextWindow,
  * baseURL, api (defaults to openai-completions, which is what the gateway's
- * /v1/chat/completions pass-through speaks).
+ * /v1/chat/completions pass-through speaks), efforts.
+ *
+ * `efforts` is the thinking-level map written onto every mirrored model:
+ * `{ low: 'low', high: 'high', max: 'max' }`. Without it the pi-ai route declares
+ * no reasoning support at all (`resolveModelReasoning` falls back to
+ * `reasoning: false` when `reasoningEfforts` is absent and the id matches no
+ * installed catalog entry), which is exactly why the effort selector disappeared
+ * on the gateway route.
  */
+/**
+ * Translate a built-in provider's model list into the pi-ai provider schema.
+ *
+ * The two schemas are not the same shape, and copying keys verbatim silently
+ * produced a provider whose models had no reasoning capability and the wrong
+ * modality field:
+ *
+ *   llm-deepseek catalogModel : id, name, contextWindow, inputModalities, systemPromptUpdate
+ *   llm-pi-ai modelProfile    : id, name, contextWindow, maxTokens, input, reasoningEfforts, compat
+ *
+ * Only the fields pi-ai understands are carried over; `inputModalities` becomes
+ * `input`, and `efforts` (when given) becomes `reasoningEfforts` on every model.
+ *
+ * Every declared level must carry a wire value the upstream accepts. pi-ai falls
+ * back to the literal level name when a level maps to null/absent, so a level
+ * named `off` would put `reasoning_effort: "off"` on the wire — and
+ * api.deepseek.com rejects exactly that with HTTP 400 ("unknown variant `off`").
+ * DeepSeek spells it `none`, so the caller maps `off -> none`.
+ */
+function mirrorModels(
+  models: Array<Record<string, unknown>>,
+  efforts?: Record<string, string>,
+): Array<Record<string, unknown>> {
+  return models.map((m) => {
+    const out: Record<string, unknown> = { id: String(m.id) }
+    if (m.name !== undefined) out.name = m.name
+    if (typeof m.contextWindow === 'number') out.contextWindow = m.contextWindow
+    if (typeof m.maxTokens === 'number') out.maxTokens = m.maxTokens
+    const modalities = (m.input ?? m.inputModalities) as string[] | undefined
+    if (Array.isArray(modalities) && modalities.length) out.input = [...modalities]
+    if (efforts && Object.keys(efforts).length) out.reasoningEfforts = { ...efforts }
+    return out
+  })
+}
+
 export function addGatewayProvider(opts: {
   name: string
   displayName: string
@@ -284,6 +326,8 @@ export function addGatewayProvider(opts: {
   models?: Array<Record<string, unknown>>
   defaultContextWindow?: number
   api?: string
+  efforts?: Record<string, string>
+  compat?: Record<string, unknown>
 }): ProtectResult {
   const file = settingsPath()
   let cfg: any
@@ -294,6 +338,18 @@ export function addGatewayProvider(opts: {
   }
   if (!opts.name || !opts.baseURL) {
     return { ok: false, error: 'a provider name and gateway URL are required', settings_file: file }
+  }
+  const wantedModels = mirrorModels(opts.models || [], opts.efforts)
+  if (!wantedModels.length) {
+    // Writing an empty list would advertise a provider with no selectable model,
+    // which is worse than failing loudly.
+    return {
+      ok: false,
+      error:
+        'no models to mirror; the source provider reported none ' +
+        '(read the resolved settings, not the raw file, so schema defaults are included)',
+      settings_file: file,
+    }
   }
 
   const ns = opts.modelsNs || 'llm-pi-ai'
@@ -307,12 +363,17 @@ export function addGatewayProvider(opts: {
 
   const existed = Boolean(block.providers[opts.name])
   const existing = existed ? block.providers[opts.name] : null
+  // The mirrored model list is part of the comparison: without it a provider
+  // whose models or reasoning levels changed would report "noop" and keep the
+  // stale list forever (which is how the effort selector stayed missing).
   const same =
     existed &&
     existing &&
     String(existing.baseURL || '') === opts.baseURL &&
     String(existing.displayName || '') === opts.displayName &&
-    String(existing[MANAGED_KEY] || '') === 'true'
+    String(existing[MANAGED_KEY] || '') === 'true' &&
+    JSON.stringify(existing.models ?? null) === JSON.stringify(wantedModels.length ? wantedModels : null) &&
+    JSON.stringify(existing.compat ?? null) === JSON.stringify(opts.compat ?? null)
   if (same) {
     return {
       ok: true,
@@ -336,8 +397,9 @@ export function addGatewayProvider(opts: {
       baseURL: opts.baseURL,
       [MANAGED_KEY]: true,
     }
+    if (opts.compat && Object.keys(opts.compat).length) entry.compat = { ...opts.compat }
     if (opts.defaultContextWindow) entry.defaultContextWindow = opts.defaultContextWindow
-    if (opts.models && opts.models.length) entry.models = JSON.parse(JSON.stringify(opts.models))
+    if (wantedModels.length) entry.models = wantedModels
     block.providers[opts.name] = entry
     writeFileSync(file, yaml.dump(cfg, { noRefs: true, lineWidth: 120, quotingType: '"' }), 'utf8')
   } catch (e: any) {
