@@ -80,6 +80,14 @@ const DICT = {
     'key.rotatedClear': '已改回密钥文件',
     'key.restartHint': '改动已保存，可重启 DSH 刷新显示',
     'key.warn': '更换密钥会重新加密已有凭据；旧对话里的占位符仍可正常还原。',
+    'exempt.edit': '编辑',
+    'exempt.editing': '编辑白名单',
+    'exempt.editHint': '每行一个词；删除某行即撤销该豁免。',
+    'exempt.save': '保存',
+    'exempt.saving': '保存中…',
+    'exempt.cancel': '取消',
+    'exempt.applied': '白名单已更新（新增 {added}，撤销 {removed}）',
+    'exempt.addedByPanel': '在插件面板中人工添加',
     'banner.dismiss': '关闭',
     'error.noGateway': '无法连接隐私网关',
   },
@@ -144,6 +152,14 @@ const DICT = {
     'key.rotatedClear': 'Switched back to the key file',
     'key.restartHint': 'Saved. Restart DSH to refresh this panel.',
     'key.warn': 'Changing the key re-encrypts stored credentials; placeholders in older chats stay restorable.',
+    'exempt.edit': 'Edit',
+    'exempt.editing': 'Edit whitelist',
+    'exempt.editHint': 'One term per line; removing a line revokes that exemption.',
+    'exempt.save': 'Save',
+    'exempt.saving': 'Saving…',
+    'exempt.cancel': 'Cancel',
+    'exempt.applied': 'Whitelist updated (+{added}, -{removed})',
+    'exempt.addedByPanel': 'added by hand in the panel',
     'banner.dismiss': 'Dismiss',
     'error.noGateway': 'Cannot reach the privacy gateway',
   },
@@ -421,6 +437,64 @@ function ExemptionCard(props: { t: T }): React.ReactElement {
   const stats = list?.stats
   const tone = !online ? '#9ca3af' : entries.length ? '#fbbf24' : '#4ade80'
 
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [note, setNote] = useState<string | null>(null)
+
+  const beginEdit = () => {
+    setDraft(entries.map((e) => e.term).join('\n'))
+    setNote(null)
+    setEditing(true)
+  }
+
+  /** Apply the edit as a diff, so existing reasons/hits survive a re-order. */
+  const save = async () => {
+    const next = new Set(
+      draft
+        .split('\n')
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0),
+    )
+    const current = new Map(entries.map((e) => [e.term, e]))
+    const added = [...next].filter((term) => !current.has(term))
+    const removed = [...current.keys()].filter((term) => !next.has(term))
+
+    if (!added.length && !removed.length) {
+      setEditing(false)
+      return
+    }
+    setBusy(true)
+    try {
+      for (const term of removed) {
+        await fetch(`/api/${PKG}/exemptions`, {
+          method: 'DELETE',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ term, reason: t('exempt.addedByPanel'), actor: 'human:panel' }),
+        })
+      }
+      for (const term of added) {
+        const r = await fetch(`/api/${PKG}/exemptions`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ term, reason: t('exempt.addedByPanel'), actor: 'human:panel' }),
+        })
+        if (!r.ok) {
+          const d = await r.json().catch(() => ({}))
+          setNote(d.error || t('sandbox.fail'))
+          setBusy(false)
+          return
+        }
+      }
+      setNote(t('exempt.applied', { added: added.length, removed: removed.length }))
+      setEditing(false)
+    } catch (e: any) {
+      setNote(e?.message || t('sandbox.fail'))
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return React.createElement(
     'div',
     {
@@ -435,59 +509,159 @@ function ExemptionCard(props: { t: T }): React.ReactElement {
       React.createElement('span', { style: { fontSize: '13px', fontWeight: 600 } }, t('exempt.title')),
       React.createElement(
         'span',
-        { style: { fontSize: '11px', fontWeight: 600, color: tone } },
-        !online
-          ? t('exempt.apiDown')
-          : entries.length
-            ? t('exempt.active', { count: entries.length })
-            : t('exempt.allFiltered'),
+        { style: { display: 'flex', gap: '10px', alignItems: 'center' } },
+        React.createElement(
+          'span',
+          { style: { fontSize: '11px', fontWeight: 600, color: tone } },
+          !online
+            ? t('exempt.apiDown')
+            : entries.length
+              ? t('exempt.active', { count: entries.length })
+              : t('exempt.allFiltered'),
+        ),
+        online && !editing
+          ? React.createElement(
+              'button',
+              {
+                onClick: beginEdit,
+                style: {
+                  background: 'transparent',
+                  border: '1px solid rgba(255,255,255,0.18)',
+                  borderRadius: '6px',
+                  color: 'inherit',
+                  fontSize: '11px',
+                  padding: '2px 8px',
+                  cursor: 'pointer',
+                },
+              },
+              t('exempt.edit'),
+            )
+          : null,
       ),
     ),
+
     !online && React.createElement('div', { style: { ...dim, color: '#fbbf24' } }, t('exempt.apiDownHint')),
-    online && !entries.length && React.createElement('div', { style: dim }, t('exempt.empty')),
-    entries.map((e, i) =>
-      React.createElement(
-        'div',
-        {
-          key: i,
-          style: {
-            padding: '8px 10px',
-            borderRadius: '8px',
-            background: 'rgba(0,0,0,0.18)',
-            marginBottom: '6px',
-          },
-        },
-        React.createElement(
-          'div',
-          { style: { display: 'flex', justifyContent: 'space-between', gap: '8px' } },
-          React.createElement(
-            'code',
-            { style: { fontSize: '12px', wordBreak: 'break-all', color: '#fde68a' } },
-            e.term,
-          ),
-          React.createElement(
-            'span',
-            { style: { fontSize: '11px', opacity: 0.75, whiteSpace: 'nowrap' } },
-            e.permanent ? t('exempt.permanent') : t('exempt.until', { time: clock(e.expires_at) }),
-          ),
-        ),
-        React.createElement(
-          'div',
-          { style: { fontSize: '11px', opacity: 0.7, marginTop: '3px' } },
-          `${t('exempt.reason')}: ${e.reason || t('exempt.noReason')}`,
-        ),
-        React.createElement(
-          'div',
-          { style: { fontSize: '11px', opacity: 0.55, marginTop: '2px' } },
-          `${t('exempt.scope')} ${e.scope} · ${t('exempt.actor')} ${e.actor} · ${t('exempt.hits')} ${e.hits}`,
-        ),
-      ),
-    ),
-    entries.length
+
+    editing
       ? React.createElement(
           'div',
-          { style: { fontSize: '11px', opacity: 0.45, marginTop: '4px' } },
-          `adds ${stats?.adds ?? 0} · revokes ${stats?.revokes ?? 0} · hits ${stats?.session_hits ?? 0}`,
+          null,
+          React.createElement('div', { style: { ...dim, marginBottom: '6px' } }, t('exempt.editHint')),
+          React.createElement('textarea', {
+            value: draft,
+            onChange: (e: any) => setDraft(e.target.value),
+            rows: Math.max(4, entries.length + 2),
+            spellCheck: false,
+            style: {
+              width: '100%',
+              boxSizing: 'border-box',
+              background: 'rgba(0,0,0,0.25)',
+              border: '1px solid rgba(255,255,255,0.12)',
+              borderRadius: '6px',
+              color: 'inherit',
+              padding: '8px',
+              fontSize: '12px',
+              fontFamily: 'monospace',
+              lineHeight: '1.6',
+            },
+          }),
+          React.createElement(
+            'div',
+            { style: { display: 'flex', gap: '8px', marginTop: '8px' } },
+            React.createElement(
+              'button',
+              {
+                onClick: save,
+                disabled: busy,
+                style: {
+                  padding: '5px 12px',
+                  borderRadius: '6px',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  background: 'var(--dsh-primary, #3b82f6)',
+                  color: '#fff',
+                  border: 'none',
+                  cursor: busy ? 'not-allowed' : 'pointer',
+                  opacity: busy ? 0.6 : 1,
+                },
+              },
+              busy ? t('exempt.saving') : t('exempt.save'),
+            ),
+            React.createElement(
+              'button',
+              {
+                onClick: () => setEditing(false),
+                disabled: busy,
+                style: {
+                  padding: '5px 12px',
+                  borderRadius: '6px',
+                  fontSize: '12px',
+                  background: 'transparent',
+                  color: 'inherit',
+                  border: '1px solid rgba(255,255,255,0.18)',
+                  cursor: busy ? 'not-allowed' : 'pointer',
+                },
+              },
+              t('exempt.cancel'),
+            ),
+          ),
+        )
+      : React.createElement(
+          'div',
+          null,
+          online && !entries.length && React.createElement('div', { style: dim }, t('exempt.empty')),
+          entries.map((e, i) =>
+            React.createElement(
+              'div',
+              {
+                key: i,
+                style: {
+                  padding: '8px 10px',
+                  borderRadius: '8px',
+                  background: 'rgba(0,0,0,0.18)',
+                  marginBottom: '6px',
+                },
+              },
+              React.createElement(
+                'div',
+                { style: { display: 'flex', justifyContent: 'space-between', gap: '8px' } },
+                React.createElement(
+                  'code',
+                  { style: { fontSize: '12px', wordBreak: 'break-all', color: '#fde68a' } },
+                  e.term,
+                ),
+                React.createElement(
+                  'span',
+                  { style: { fontSize: '11px', opacity: 0.75, whiteSpace: 'nowrap' } },
+                  e.permanent ? t('exempt.permanent') : t('exempt.until', { time: clock(e.expires_at) }),
+                ),
+              ),
+              React.createElement(
+                'div',
+                { style: { fontSize: '11px', opacity: 0.7, marginTop: '3px' } },
+                `${t('exempt.reason')}: ${e.reason || t('exempt.noReason')}`,
+              ),
+              React.createElement(
+                'div',
+                { style: { fontSize: '11px', opacity: 0.55, marginTop: '2px' } },
+                `${t('exempt.scope')} ${e.scope} · ${t('exempt.actor')} ${e.actor} · ${t('exempt.hits')} ${e.hits}`,
+              ),
+            ),
+          ),
+          entries.length && stats
+            ? React.createElement(
+                'div',
+                { style: { fontSize: '11px', opacity: 0.45, marginTop: '4px' } },
+                `adds ${stats.adds} · revokes ${stats.revokes} · hits ${stats.session_hits}`,
+              )
+            : null,
+        ),
+
+    note
+      ? React.createElement(
+          'div',
+          { style: { fontSize: '12px', marginTop: '8px', color: note.includes(t('sandbox.fail')) ? '#f87171' : '#4ade80' } },
+          note,
         )
       : null,
   )
