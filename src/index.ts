@@ -142,6 +142,33 @@ export class PrivacyGuardService {
     }
   }
 
+  /** Vault key configuration. Never contains the passphrase itself. */
+  async getKeyConfig(): Promise<any | null> {
+    try {
+      const resp = await fetch(`${this.gatewayUrl}/privacy/key`, { signal: AbortSignal.timeout(4000) })
+      if (!resp.ok) return null
+      const data = await resp.json()
+      return data?.config ?? null
+    } catch {
+      return null
+    }
+  }
+
+  /** Switch the vault key source. The gateway re-encrypts before it restarts. */
+  async setKeyConfig(body: { mode: string; password?: string; actor?: string }): Promise<any> {
+    try {
+      const resp = await fetch(`${this.gatewayUrl}/privacy/key`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(190000),
+      })
+      return await resp.json()
+    } catch (err: any) {
+      return { ok: false, error: err?.message || 'Failed to reach /privacy/key' }
+    }
+  }
+
   /** Append-only audit trail of allow / revoke / expire / hit decisions. */
   async getExemptionAudit(since = 0, limit = 40): Promise<ExemptionAudit | null> {
     try {
@@ -179,6 +206,29 @@ export function apply(ctx: Context, config?: Config): void {
           return
         }
         writeJson(res, 200, health)
+      },
+    },
+    {
+      kind: 'exact',
+      path: '/api/dsh-privacy-guard/key',
+      handler: async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
+        if (req.method === 'POST') {
+          try {
+            const raw = await readBody(req)
+            const body = JSON.parse(raw) as { mode: string; password?: string; actor?: string }
+            const result = await service.setKeyConfig(body)
+            writeJson(res, result.ok ? 200 : 400, result)
+          } catch (err: any) {
+            writeJson(res, 400, { ok: false, error: err?.message || 'Invalid JSON body' })
+          }
+          return
+        }
+        const config = await service.getKeyConfig()
+        if (!config) {
+          writeJson(res, 503, { ok: false, error: 'Privacy Gateway offline' })
+          return
+        }
+        writeJson(res, 200, { ok: true, config })
       },
     },
     {

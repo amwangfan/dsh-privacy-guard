@@ -23,7 +23,10 @@ Designed to accompany [amwangfan/privacy-gateway](https://github.com/amwangfan/p
 4. **🧪 Interactive Leak-Test Sandbox (Dry-Run Tester)**:
    - Built directly into the DSH Settings panel.
    - Paste any configuration or text with credentials to instantly preview redacted placeholders before actual LLM calls (100% local, zero WAN egress).
-5. **🔓 Exemption list and in-page banner**:
+5. **🔑 Encryption key configuration (optional)**:
+   - Choose between the generated key file and a custom passphrase; the passphrase is never echoed back.
+   - Changing the key re-encrypts and verifies existing credentials first, rolls back on failure, and keeps older placeholders restorable.
+6. **🔓 Exemption list and in-page banner**:
    - The panel lists every term whose filtering is currently paused, with scope, reason, actor, expiry, and hit count.
    - When an agent adds or revokes an exemption, an **in-page banner** (not a browser `alert`) reports which term, why, who did it, and when it expires.
 

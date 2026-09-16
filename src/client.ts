@@ -61,6 +61,26 @@ const DICT = {
     'sandbox.fail': '调用失败',
     'sandbox.hitLayer1': '模型判定命中',
     'sandbox.exempted': '{count} 处豁免未脱敏',
+    'key.title': '加密密钥',
+    'key.mode.file': '密钥文件',
+    'key.mode.password': '自定义口令',
+    'key.current': '来源',
+    'key.vaultRows': '落盘凭据',
+    'key.customLabel': '自定义口令（可选）',
+    'key.customHint': '设置后用于加密持久化数据；留空则使用自动生成的密钥文件。',
+    'key.passwordPlaceholder': '至少 8 位，不会回显',
+    'key.confirmPlaceholder': '再输入一次',
+    'key.save': '保存',
+    'key.saving': '正在重新加密…',
+    'key.clear': '改回密钥文件',
+    'key.notSet': '未设置',
+    'key.mismatch': '两次输入不一致',
+    'key.tooShort': '口令至少 8 位',
+    'key.rotated': '已重新加密 {count} 条凭据',
+    'key.rotatedClear': '已改回密钥文件',
+    'key.restartHint': '改动已保存，可重启 DSH 刷新显示',
+    'key.warn': '更换密钥会重新加密已有凭据；旧对话里的占位符仍可正常还原。',
+    'banner.dismiss': '关闭',
     'error.noGateway': '无法连接隐私网关',
   },
   en: {
@@ -105,25 +125,92 @@ const DICT = {
     'sandbox.fail': 'Request failed',
     'sandbox.hitLayer1': 'residual model flagged it',
     'sandbox.exempted': '{count} exempted spans left as-is',
+    'key.title': 'Encryption key',
+    'key.mode.file': 'Key file',
+    'key.mode.password': 'Custom passphrase',
+    'key.current': 'Source',
+    'key.vaultRows': 'Stored credentials',
+    'key.customLabel': 'Custom passphrase (optional)',
+    'key.customHint': 'Used to encrypt persisted data. Leave empty to keep the generated key file.',
+    'key.passwordPlaceholder': 'At least 8 characters, never echoed back',
+    'key.confirmPlaceholder': 'Repeat the passphrase',
+    'key.save': 'Save',
+    'key.saving': 'Re-encrypting…',
+    'key.clear': 'Use the key file',
+    'key.notSet': 'not set',
+    'key.mismatch': 'The two entries differ',
+    'key.tooShort': 'Use at least 8 characters',
+    'key.rotated': 'Re-encrypted {count} credential(s)',
+    'key.rotatedClear': 'Switched back to the key file',
+    'key.restartHint': 'Saved. Restart DSH to refresh this panel.',
+    'key.warn': 'Changing the key re-encrypts stored credentials; placeholders in older chats stay restorable.',
+    'banner.dismiss': 'Dismiss',
     'error.noGateway': 'Cannot reach the privacy gateway',
   },
 }
 
 type T = (key: string, params?: Record<string, string | number>) => string
 
-function makeT(translate: any): T {
+function interpolate(text: string, params?: Record<string, string | number>): string {
+  if (!params) return text
+  let out = text
+  for (const [k, v] of Object.entries(params)) out = out.split(`{${k}}`).join(String(v))
+  return out
+}
+
+/** Resolve a translator from the client locale service. */
+function bindTranslator(ctx: any): any {
+  try {
+    const locale = ctx && ctx.get ? ctx.get('locale') : undefined
+    if (locale && typeof locale.bind === 'function') return locale.bind(NS)
+  } catch {
+    /* fall through to the document hint */
+  }
+  return null
+}
+
+/**
+ * Best-effort language guess used only when the locale service is unreachable,
+ * so the panel still follows the interface language instead of always showing
+ * Chinese or always showing English.
+ */
+function documentLocale(): string {
+  try {
+    const lang = String((globalThis as any).document?.documentElement?.lang || '').toLowerCase()
+    if (lang) return lang
+    const nav = String((globalThis as any).navigator?.language || '').toLowerCase()
+    return nav
+  } catch {
+    return ''
+  }
+}
+
+/**
+ * The translator is resolved lazily on every call.
+ *
+ * The locale service is provided by a sibling client plugin that itself injects
+ * `slots`, `remote` and `settingsScope`, so its `apply` may run AFTER this
+ * plugin's — looking it up once during apply silently produced the English
+ * fallback in a Chinese interface. Re-resolving per call also means a language
+ * switch needs no re-registration, because the settings label is a thunk the
+ * panel re-reads on each projection.
+ */
+function makeT(ctx: any): T {
+  let bound: any = null
   return (key: string, params?: Record<string, string | number>) => {
-    let text = key
-    try {
-      const out = translate(key)
-      if (typeof out === 'string') text = out
-    } catch {
-      text = key
+    if (bound === null) bound = bindTranslator(ctx) || false
+    if (bound) {
+      try {
+        const out = bound(key)
+        if (typeof out === 'string' && out !== key) return interpolate(out, params)
+      } catch {
+        /* fall through to the built-in dictionary */
+      }
     }
-    if (params) {
-      for (const [k, v] of Object.entries(params)) text = text.split(`{${k}}`).join(String(v))
-    }
-    return text
+    const lang = documentLocale()
+    const dict = lang.startsWith('zh') ? DICT.zh : DICT.en
+    const text = (dict as Record<string, string>)[key] ?? (DICT.en as Record<string, string>)[key] ?? key
+    return interpolate(text, params)
   }
 }
 
@@ -216,13 +303,50 @@ function StatusCard(props: {
   )
 }
 
-function ExemptionBanner(props: { t: T }): React.ReactElement | null {
+/**
+ * Frame-wide banner for exemption and key changes.
+ *
+ * Reads the gateway's folded notification list rather than the audit trail, so a
+ * retried operation is shown once. The first poll only primes the cursor; it
+ * never replays history at the user.
+ */
+function NotificationBanner(props: { t: T }): React.ReactElement | null {
   const { t } = props
-  const { fresh, clear } = useExemptions()
-  if (!fresh.length) return null
-  const primary = fresh[0]
-  const isAdd = primary.action === 'add'
-  const accent = isAdd ? '#f59e0b' : '#22c55e'
+  const [item, setItem] = useState<any>(null)
+  const cursor = useRef(0)
+  const primed = useRef(false)
+
+  useEffect(() => {
+    let cancelled = false
+    const tick = async () => {
+      try {
+        const r = await fetch(`/api/${PKG}/health`)
+        if (!r.ok) return
+        const data = await r.json()
+        const notes = data?.notifications
+        if (!notes || !Array.isArray(notes.items)) return
+        const at = Number(notes.changed_at || 0)
+        if (primed.current && at > cursor.current) {
+          const newest = notes.items[notes.items.length - 1]
+          if (newest && !cancelled) setItem(newest)
+        }
+        cursor.current = Math.max(cursor.current, at)
+        primed.current = true
+      } catch {
+        /* the banner is best-effort */
+      }
+    }
+    tick()
+    const timer = setInterval(tick, POLL_MS)
+    return () => {
+      cancelled = true
+      clearInterval(timer)
+    }
+  }, [])
+
+  if (!item) return null
+  const added = item.kind === 'add'
+  const accent = added ? '#f59e0b' : item.kind === 'key-change' ? '#a78bfa' : '#22c55e'
 
   return React.createElement(
     'div',
@@ -251,34 +375,29 @@ function ExemptionBanner(props: { t: T }): React.ReactElement | null {
     React.createElement(
       'div',
       { style: { display: 'flex', alignItems: 'flex-start', gap: '10px' } },
-      React.createElement('span', null, isAdd ? '⚠️' : '✅'),
+      React.createElement('span', null, added ? '⚠️' : item.kind === 'key-change' ? '🔑' : '✅'),
       React.createElement(
         'div',
         { style: { flex: 1, minWidth: 0 } },
         React.createElement(
           'div',
           { style: { fontWeight: 700, color: accent, marginBottom: '2px', wordBreak: 'break-all' } },
-          t(isAdd ? 'exempt.bannerAdded' : 'exempt.bannerRemoved', { term: primary.term }),
+          item.title || item.dedupe_key,
         ),
-        primary.reason
-          ? React.createElement(
-              'div',
-              { style: { opacity: 0.9 } },
-              `${t('exempt.bannerReason')}: ${primary.reason}`,
-            )
+        item.detail
+          ? React.createElement('div', { style: { opacity: 0.9 } }, item.detail)
           : null,
         React.createElement(
           'div',
           { style: { opacity: 0.6, fontSize: '12px' } },
-          `${t('exempt.bannerBy')}: ${primary.actor || '-'}` +
-            (fresh.length > 1 ? ` · ${t('exempt.bannerMore', { count: fresh.length })}` : ''),
+          `${t('exempt.bannerBy')}: ${item.actor || '-'}`,
         ),
       ),
       React.createElement(
         'button',
         {
-          onClick: clear,
-          title: t('exempt.bannerDismiss'),
+          onClick: () => setItem(null),
+          title: t('banner.dismiss'),
           style: {
             background: 'transparent',
             border: 'none',
@@ -369,6 +488,176 @@ function ExemptionCard(props: { t: T }): React.ReactElement {
           'div',
           { style: { fontSize: '11px', opacity: 0.45, marginTop: '4px' } },
           `adds ${stats?.adds ?? 0} · revokes ${stats?.revokes ?? 0} · hits ${stats?.session_hits ?? 0}`,
+        )
+      : null,
+  )
+}
+
+/** Optional passphrase for the encrypted persistence store. */
+function KeyConfigCard(props: { t: T }): React.ReactElement {
+  const { t } = props
+  const [cfg, setCfg] = useState<any>(null)
+  const [pw, setPw] = useState('')
+  const [pw2, setPw2] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
+
+  const load = useCallback(async () => {
+    try {
+      const r = await fetch(`/api/${PKG}/key`)
+      if (!r.ok) throw new Error(String(r.status))
+      const d = await r.json()
+      setCfg(d.config)
+    } catch {
+      setCfg(null)
+    }
+  }, [])
+
+  useEffect(() => {
+    load()
+  }, [load])
+
+  const submit = async (mode: 'password' | 'file') => {
+    setMsg(null)
+    if (mode === 'password') {
+      if (pw.length < 8) {
+        setMsg({ ok: false, text: t('key.tooShort') })
+        return
+      }
+      if (pw !== pw2) {
+        setMsg({ ok: false, text: t('key.mismatch') })
+        return
+      }
+    }
+    setBusy(true)
+    try {
+      const r = await fetch(`/api/${PKG}/key`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ mode, password: mode === 'password' ? pw : undefined, actor: 'human:panel' }),
+      })
+      const d = await r.json()
+      if (!r.ok || !d.ok) {
+        setMsg({ ok: false, text: d.error || t('sandbox.fail') })
+        return
+      }
+      const count = d.result?.reencrypted ?? 0
+      setMsg({
+        ok: true,
+        text: (mode === 'password' ? t('key.rotated', { count }) : t('key.rotatedClear')),
+      })
+      setPw('')
+      setPw2('')
+      await load()
+    } catch (e: any) {
+      setMsg({ ok: false, text: e?.message || t('sandbox.fail') })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const isPassword = cfg?.mode === 'password'
+
+  return React.createElement(
+    'div',
+    { style: { ...card, marginTop: '16px' } },
+    React.createElement(
+      'div',
+      { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' } },
+      React.createElement('span', { style: { fontSize: '13px', fontWeight: 600 } }, t('key.title')),
+      React.createElement(
+        'span',
+        { style: { fontSize: '11px', fontWeight: 600, color: isPassword ? '#c084fc' : '#9ca3af' } },
+        isPassword ? t('key.mode.password') : t('key.mode.file'),
+      ),
+    ),
+    cfg
+      ? React.createElement(
+          'div',
+          { style: { fontSize: '11px', opacity: 0.6, marginBottom: '10px' } },
+          `${t('key.current')}: ${cfg.effective_source} · ${t('key.vaultRows')}: ${cfg.vault_rows}` +
+            (isPassword && cfg.password_set ? '' : '' ),
+        )
+      : React.createElement('div', { style: dim }, t('exempt.apiDownHint')),
+    React.createElement('div', { style: { ...dim, marginBottom: '10px' } }, t('key.warn')),
+    React.createElement(
+      'div',
+      { style: { display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' } },
+      React.createElement('input', {
+        type: 'password',
+        value: pw,
+        placeholder: t('key.passwordPlaceholder'),
+        onChange: (e: any) => setPw(e.target.value),
+        style: {
+          flex: '1 1 200px',
+          background: 'rgba(0,0,0,0.25)',
+          border: '1px solid rgba(255,255,255,0.12)',
+          borderRadius: '6px',
+          color: 'inherit',
+          padding: '6px 8px',
+          fontSize: '12px',
+        },
+      }),
+      React.createElement('input', {
+        type: 'password',
+        value: pw2,
+        placeholder: t('key.confirmPlaceholder'),
+        onChange: (e: any) => setPw2(e.target.value),
+        style: {
+          flex: '1 1 200px',
+          background: 'rgba(0,0,0,0.25)',
+          border: '1px solid rgba(255,255,255,0.12)',
+          borderRadius: '6px',
+          color: 'inherit',
+          padding: '6px 8px',
+          fontSize: '12px',
+        },
+      }),
+      React.createElement(
+        'button',
+        {
+          onClick: () => submit('password'),
+          disabled: busy,
+          style: {
+            padding: '6px 12px',
+            borderRadius: '6px',
+            fontSize: '12px',
+            fontWeight: 600,
+            background: 'var(--dsh-primary, #3b82f6)',
+            color: '#fff',
+            border: 'none',
+            cursor: busy ? 'not-allowed' : 'pointer',
+            opacity: busy ? 0.6 : 1,
+          },
+        },
+        busy ? t('key.saving') : t('key.save'),
+      ),
+      isPassword
+        ? React.createElement(
+            'button',
+            {
+              onClick: () => submit('file'),
+              disabled: busy,
+              style: {
+                padding: '6px 12px',
+                borderRadius: '6px',
+                fontSize: '12px',
+                background: 'transparent',
+                color: 'inherit',
+                border: '1px solid rgba(255,255,255,0.18)',
+                cursor: busy ? 'not-allowed' : 'pointer',
+              },
+            },
+            t('key.clear'),
+          )
+        : null,
+    ),
+    msg
+      ? React.createElement(
+          'div',
+          { style: { fontSize: '12px', marginTop: '8px', color: msg.ok ? '#4ade80' : '#f87171' } },
+          msg.text,
+          msg.ok ? ` · ${t('key.restartHint')}` : '',
         )
       : null,
   )
@@ -491,6 +780,8 @@ function Panel(props: { t: T }): React.ReactElement {
 
     React.createElement(ExemptionCard, { t }),
 
+    React.createElement(KeyConfigCard, { t }),
+
     React.createElement(
       'div',
       { style: { ...card, marginTop: '16px' } },
@@ -580,31 +871,17 @@ export function apply(ctx: any): void {
   const slots = ctx.get ? ctx.get('slots') : ctx.slots
   if (!slots) return
 
-  // Localisation. `locale` is read optionally: when the service is present the
-  // shell's own translator is used, so the settings label and every string follow
-  // the active language. The bound function is captured once, but we re-query the
-  // translator on every call, and the label is a thunk the settings panel
-  // re-reads on each projection, so a language switch is reflected without a
-  // re-registration. If the service is not there yet we fall back to the built-in
-  // English copy rather than showing raw keys.
-  let translate: any = null
-  const locale = ctx.get ? ctx.get('locale') : undefined
-  if (locale?.register) {
-    try {
-      locale.register(NS, DICT)
-    } catch {
-      /* without a dictionary the translator falls back to English below */
-    }
+  // Register both dictionaries as early as the service allows. `makeT` resolves
+  // the translator lazily on every call, so a locale service that appears later
+  // (its own apply injects slots/remote/settingsScope and can run after ours)
+  // is still picked up instead of silently falling back to English.
+  try {
+    const locale = ctx.get ? ctx.get('locale') : undefined
+    if (locale && typeof locale.register === 'function') locale.register(NS, DICT)
+  } catch {
+    /* the built-in dictionary still localises the panel */
   }
-  if (locale?.bind) {
-    try {
-      translate = locale.bind(NS)
-    } catch {
-      translate = null
-    }
-  }
-  const fallback = (key: string): string => (DICT.en as Record<string, string>)[key] ?? key
-  const t: T = makeT((key: string) => (translate ? translate(key) : fallback(key)))
+  const t: T = makeT(ctx)
 
   slots.inject('settings.section', () => {
     try {
@@ -622,12 +899,12 @@ export function apply(ctx: any): void {
     }
   })
 
-  // Frame-wide overlay: the in-page banner announcing exemption changes.
+  // Frame-wide overlay: the in-page banner announcing exemption and key changes.
   slots.inject('shell.overlay', () => {
     try {
       return slots.register(
         { name: 'shell.overlay', id: 'privacy-guard-exemption-banner', order: 60 },
-        () => React.createElement(ExemptionBanner, { t }),
+        () => React.createElement(NotificationBanner, { t }),
       )
     } catch {
       return () => {}

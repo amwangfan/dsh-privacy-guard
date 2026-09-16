@@ -15,7 +15,40 @@ export interface PersistStats {
   layer1_rows?: number
   mem_mappings?: number
   key_source?: string
+  /** 'password' (operator passphrase) or 'file' (generated key file). */
+  key_mode?: 'password' | 'file'
+  /** Whether a passphrase is configured. The passphrase itself is never returned. */
+  password_set?: boolean
+  password_file?: string
+  key_file?: string
   custom_secrets_count?: number
+}
+
+/** Notification entries the gateway folds for UI polling. */
+export interface GatewayNotification {
+  kind: string
+  dedupe_key: string
+  ts: number
+  title: string
+  detail: string
+  actor: string
+  severity: 'info' | 'warn' | string
+}
+
+/** Vault key configuration, as exposed by GET /privacy/key. */
+export interface KeyConfig {
+  mode: 'password' | 'file'
+  effective_source: string
+  password_set: boolean
+  password_file: string
+  mode_file: string
+  key_file: string
+  key_file_exists: boolean
+  db_path: string
+  vault_rows: number
+  manager: string
+  manager_available: boolean
+  note: string
 }
 
 export interface ExemptionEntry {
@@ -85,6 +118,7 @@ export interface GatewayHealth {
   placeholder_prefix: string
   persist?: PersistStats
   exemptions?: ExemptionStats
+  notifications?: { changed_at: number; items: GatewayNotification[] }
   layer1: Layer1Stats
 }
 
