@@ -94,7 +94,7 @@ An agent that allowlists a term must also tell the user what it exempted and why
 |---|---|---|
 | **`dsh-privacy-guard`** (This Repo) | DSH Web plugin & dashboard (Node.js / React / Cordis) | [GitHub: amwangfan/dsh-privacy-guard](https://github.com/amwangfan/dsh-privacy-guard) |
 | **`privacy-gateway`** | Local high-performance reverse proxy (Python / FastAPI / DFA) | [GitHub: amwangfan/privacy-gateway](https://github.com/amwangfan/privacy-gateway) |
-| **`qwen2.5-0.5b-privacy`** | Lightweight edge model fine-tuned for credential classification | [HuggingFace: amwangfan/privacy-gateway-v4-qwen2.5-0.5b](https://huggingface.co/amwangfan/privacy-gateway-v4-qwen2.5-0.5b) |
+| **`qwen2.5-0.5b-privacy`** | Residual credential classifier (step-220 LoRA + F16/Q8 GGUF; gateway probe gates on FPR only, weak passwords stay on Layer 0) | [HuggingFace: amwangfan/privacy-gateway-v4-qwen2.5-0.5b](https://huggingface.co/amwangfan/privacy-gateway-v4-qwen2.5-0.5b) |
 
 ---
 
