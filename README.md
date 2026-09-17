@@ -89,7 +89,7 @@ AI 在放行某个词之后，**必须在回复中向用户说明放行了什么
 |---|---|---|
 | **`dsh-privacy-guard`** (本仓库) | DSH Web 客户端管理与监控插件 (Node.js / React / Cordis) | [GitHub: amwangfan/dsh-privacy-guard](https://github.com/amwangfan/dsh-privacy-guard) |
 | **`privacy-gateway`** | 本地高性能出网脱敏网关核心 (Python / FastAPI / DFA) | [GitHub: amwangfan/privacy-gateway](https://github.com/amwangfan/privacy-gateway) |
-| **`qwen2.5-0.5b-privacy`** | 本地凭据残差判别（step-220 LoRA + F16/Q8 GGUF；网关探针只卡 FPR，弱口令交给 Layer 0） | [HuggingFace: amwangfan/privacy-gateway-v4-qwen2.5-0.5b](https://huggingface.co/amwangfan/privacy-gateway-v4-qwen2.5-0.5b) |
+| **`qwen2.5-0.5b-privacy`** | 本地凭据残差判别（step-220 LoRA + F16/Q8 GGUF；探针只卡 FPR；弱口令不走硬规则，漏了就漏了） | [HuggingFace: amwangfan/privacy-gateway-v4-qwen2.5-0.5b](https://huggingface.co/amwangfan/privacy-gateway-v4-qwen2.5-0.5b) |
 
 ---
 
